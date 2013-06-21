@@ -419,4 +419,24 @@ header.view.querySelector('#searchSubmit').addEventListener('click', function (e
 	grid.loadContent(req, 'Search results for ' + key);
 }, false);
 
+
+window.addEventListener('resize', function () {
+	var height = player.view.offsetHeight - player.view.querySelector('.infos').offsetHeight;
+	var container = player.view.querySelector('.video-container-outer');
+	var playerHeight = container.offsetHeight;
+	if (height === 0) return;
+	if (height > playerHeight) {
+		container.style.width = 'auto';
+	}
+	else {
+		var newWidth = 16 / 9 * height;
+		container.style.width = newWidth + 'px';
+	}
+
+});
+
+
+
+
+
 };
