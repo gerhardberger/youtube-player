@@ -420,8 +420,28 @@ header.view.querySelector('#searchSubmit').addEventListener('click', function (e
 	grid.loadContent(req, 'Search results for ' + key);
 }, false);
 
+
+window.addEventListener('resize', function () {
+	var height = player.view.offsetHeight - player.view.querySelector('.infos').offsetHeight;
+	var container = player.view.querySelector('.video-container-outer');
+	var playerHeight = container.offsetHeight;
+	if (height === 0) return;
+	if (height > playerHeight) {
+		container.style.width = 'auto';
+	}
+	else {
+		var newWidth = 16 / 9 * height;
+		container.style.width = newWidth + 'px';
+	}
+
+});
+
+
+
+
+
 };
-},{"browser-request":2,"huk-browserify":3,"underscore":4}],4:[function(require,module,exports){
+},{"browser-request":2,"underscore":3,"huk-browserify":4}],3:[function(require,module,exports){
 (function(){//     Underscore.js 1.4.4
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud Inc.
@@ -2041,7 +2061,7 @@ function b64_enc (data) {
 }
 
 })()
-},{"./xmlhttprequest":5}],3:[function(require,module,exports){
+},{"./xmlhttprequest":5}],4:[function(require,module,exports){
 var _ = require('underscore');
 
 var HTMLElements = // from the w3schools site (http://www.w3schools.com/tags/default.asp)
@@ -2129,7 +2149,7 @@ Huk.prototype.prependTo = function (parent) {
 };
 
 module.exports = Huk;
-},{"underscore":4}],5:[function(require,module,exports){
+},{"underscore":3}],5:[function(require,module,exports){
 (function(){
 
 !function(window) {
