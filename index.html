@@ -1,0 +1,71 @@
+<html>
+<head>
+	<title>YouTube</title>
+	
+	<meta name="viewport" content="initial-scale=1, maximum-scale=1">
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+
+	<script type="text/javascript" src="bundle.js"></script>
+
+	<!--<script type="text/javascript" src="backbone.js"></script>-->
+
+
+	<link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+
+	<div class="container">
+
+		<header>
+			<input type="text" name="loginField" placeholder="Username" id="loginField">
+			<input type="submit" value="Sign in" id="loginSubmit">
+
+			<div class="yt">YouTube</div>
+
+			<div class="spinner">
+				<div class="bar1"></div>
+				<div class="bar2"></div>
+				<div class="bar3"></div>
+				<div class="bar4"></div>
+				<div class="bar5"></div>
+				<div class="bar6"></div>
+				<div class="bar7"></div>
+				<div class="bar8"></div>
+				<div class="bar9"></div>
+				<div class="bar10"></div>
+				<div class="bar11"></div>
+				<div class="bar12"></div>
+			</div>
+
+			<input type="text" name="searchField" placeholder="Search" id="searchField">
+			<input type="submit" value id="searchSubmit">
+		</header>
+
+		<section>
+			<header></header>
+
+			<div class="list"></div>
+		</section>
+
+		<div class="playlist">
+			<ul></ul>
+		</div>
+
+	</div>
+
+	<div class="player">
+
+		<a href="#" class="close">&times;</a>
+		
+		<div class="infos"></div>
+
+		<div class="video-container-outer">
+			<div class="video-container">
+				<div id="player"></div>
+			</div>
+		</div>
+
+	</div>
+
+</body>
+</html>
