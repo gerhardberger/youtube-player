@@ -367,6 +367,7 @@ Playlist.prototype.add = function(video) {
 		dom.style.mozTransform = 'scale(0)';
 		dom.style.opacity = '0';
 		var handler = function () { dom.parentNode.removeChild(dom); };
+Uncaught TypeError: Cannot call method 'removeChild' of null (repeated 3 times)
 		dom.addEventListener('webkitTransitionEnd', handler, false);
 		dom.addEventListener('mozTransitionEnd', handler, false);
 	}, false);
@@ -561,7 +562,7 @@ Video.prototype.setupView = function (data) {
 };
 
 module.exports = Video;
-},{"./youtube-data-request.js":7,"huk-browserify":10,"elapsed":11}],12:[function(require,module,exports){
+},{"./youtube-data-request.js":7,"elapsed":11,"huk-browserify":10}],12:[function(require,module,exports){
 (function(){// Browser Request
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

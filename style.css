@@ -531,7 +531,6 @@ section .list {
 }
 
 .player .video-container-outer {
-	max-width: 1400px;
 	margin: 0 auto;
 }
 
