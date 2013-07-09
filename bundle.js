@@ -367,7 +367,7 @@ Playlist.prototype.add = function(video) {
 		dom.style.mozTransform = 'scale(0)';
 		dom.style.opacity = '0';
 		var handler = function () { dom.parentNode.removeChild(dom); };
-Uncaught TypeError: Cannot call method 'removeChild' of null (repeated 3 times)
+
 		dom.addEventListener('webkitTransitionEnd', handler, false);
 		dom.addEventListener('mozTransitionEnd', handler, false);
 	}, false);
