@@ -1,67 +1,99 @@
-;(function(e,t,n){function i(n,s){if(!t[n]){if(!e[n]){var o=typeof require=="function"&&require;if(!s&&o)return o(n,!0);if(r)return r(n,!0);throw new Error("Cannot find module '"+n+"'")}var u=t[n]={exports:{}};e[n][0](function(t){var r=e[n][1][t];return i(r?r:t)},u,u.exports)}return t[n].exports}var r=typeof require=="function"&&require;for(var s=0;s<n.length;s++)i(n[s]);return i})({1:[function(require,module,exports){
-var request = require('browser-request');
-var $ = require('huk-browserify');
-var _ = require('underscore');
-var Elapsed = require('elapsed');
+;(function(e,t,n){function i(n,s){if(!t[n]){if(!e[n]){var o=typeof require=="function"&&require;if(!s&&o)return o(n,!0);if(r)return r(n,!0);throw new Error("Cannot find module '"+n+"'")}var u=t[n]={exports:{}};e[n][0].call(u.exports,function(t){var r=e[n][1][t];return i(r?r:t)},u,u.exports)}return t[n].exports}var r=typeof require=="function"&&require;for(var s=0;s<n.length;s++)i(n[s]);return i};)({1:[function(require,module,exports){
+var Player = require('./player.js');
+var Playlist = require('./playlist.js');
+var Grid = require('./grid.js');
+var User = require('./user.js');
+var Spinner = require('./spinner.js');
+var YouTubeDataRequest = require('./youtube-data-request.js');
+var Header = require('./header.js');
 
-var DEFAULT_URL = 'https://gdata.youtube.com/feeds/api/users/skagames/newsubscriptionvideos?v=2.1&alt=json&start-index=1&max-results=40&orderby=published'; //'https://gdata.youtube.com/feeds/api/standardfeeds/recently_featured?alt=json'
+
+
+window.onload = function () {
 
 
 
-function Video (data, player, grid, playlist) {
-	this.data = data;
-	this.player = player;
-	this.grid = grid;
-	this.playlist = playlist;
+var tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+var firstScriptTag = document.getElementsByTagName('script')[0];
+firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-	this.setupView(this.data);
+var header = new Header(document.querySelector('.container > header'));
+var player = new Player(document.querySelector('.player'));
+var playlist = new Playlist(document.querySelector('.playlist'));
+var grid = new Grid(document.querySelector('.container > section'));
 
-	//this.loaded = function ()
+header.spinner = new Spinner(document.querySelector('.container > header .spinner'));
+header.grid = grid;
+
+grid.playlist = playlist;
+grid.player = player;
+grid.spinner = header.spinner;
+
+playlist.grid = grid;
+
+var homeUser = new User(header, grid);
+header.user = homeUser;
+
+window.addEventListener('scroll', function (event) {
+	var body = document.querySelector('body');
+
+	if (body.scrollHeight === body.scrollTop + body.clientHeight) grid.appendContent();
+
+}, false);
+
+
+header.view.querySelector('#searchSubmit').addEventListener('click', function (event) {
+	var key = header.view.querySelector('#searchField').value;
+	var req = new YouTubeDataRequest({
+		type: 'search'
+		, key: key
+		, orderBy: 'relevance'
+	});
+	grid.loadContent(req, 'Search results for ' + key);
+}, false);
+
+window.addEventListener('resize', function () {
+	var height = player.view.offsetHeight - player.view.querySelector('.infos').offsetHeight;
+	var container = player.view.querySelector('.video-container-outer');
+	var playerHeight = container.offsetHeight;
+	if (height === 0) return;
+	if (height > playerHeight) {
+		container.style.width = 'auto';
+	}
+	else {
+		var newWidth = 16 / 9 * height;
+		container.style.width = newWidth + 'px';
+	}
+
+});
+
+
+
+
+
+};
+},{"./player.js":2,"./playlist.js":3,"./grid.js":4,"./user.js":5,"./spinner.js":6,"./youtube-data-request.js":7,"./header.js":8}],6:[function(require,module,exports){
+function Spinner (dom) {
+	this.view = dom;
+	this.state = 'HIDDEN';
 }
 
-Video.prototype.setupView = function (data) {
-	var self = this;
-	if (data !== self.data) self.data = data;
-	if (!data) data = self.data;
-
-	if (!self.data.yt$statistics) self.data.yt$statistics = { viewCount: '0' };
- 
-	self.view = $.div({ 'class': 'video'}, 
-		$()
-			.img({ src: 'http://i3.ytimg.com/vi/' + self.data.media$group.yt$videoid.$t + '/mqdefault.jpg' })
-			.div({ 'class': 'title', title: self.data.title.$t }, self.data.title.$t.length > 40 ? self.data.title.$t.slice(0, 38) + '...' : self.data.title.$t)
-			.div({ 'class': 'duration' }, self.data.media$group.yt$duration.seconds)
-			.div({ 'class': 'views' }, self.data.yt$statistics.viewCount)
-			.div({ 'class': 'date', title: (new Date(self.data.media$group.yt$uploaded.$t)).toLocaleString() },
-				(new Elapsed(new Date(self.data.media$group.yt$uploaded.$t))).optimal + ' ago')
-			.div({ 'class': 'uploader' }, self.data.author[0].name.$t)
-			.button({ 'class': 'plus' }, '+'));
-	if (!self.player) return self.view;
-
-	var handler = function () {
-		self.player.start(self);
-		self.player.playlist = undefined;
-		self.player.playlistItemNumber = undefined;
-	};
-
-	self.view.querySelector('img').addEventListener('click', handler, false);
-	self.view.querySelector('.title').addEventListener('click', handler, false);
-	self.view.querySelector('.uploader').addEventListener('click', function () {
-		var name = this.innerHTML;
-		var req = new YouTubeDataRequest({
-			type: 'uservideos'
-			, uri: self.data.author[0].uri.$t
-		});
-		self.grid.loadContent(req, name);
-	}, false);
-
-	self.view.querySelector('.plus').addEventListener('click', function () {
-		self.playlist.add(self);
-	}, false);
-
-	return self.view;
+Spinner.prototype.start = function () {
+	this.view.classList.add('loading');
+	this.view.parentNode.querySelector('.yt').classList.add('loading');
+	this.state = 'ACTIVE';
 };
 
+Spinner.prototype.end = function () {
+	this.view.parentNode.querySelector('.yt').classList.remove('loading');
+	this.view.classList.remove('loading');
+	this.state = 'HIDDEN';
+};
+
+module.exports = Spinner;
+},{}],4:[function(require,module,exports){
+var Video = require('./video.js');
 
 function Grid (dom) {
 	this.view = dom;
@@ -115,30 +147,86 @@ Grid.prototype.appendContent = function(title) {
 		});
 		self.state = 'INACTIVE';
 	});
-
 };
 
+module.exports = Grid;
+},{"./video.js":9}],5:[function(require,module,exports){
+var YouTubeDataRequest = require('./youtube-data-request.js');
+
+function User (header, grid) {
+	var self = this;
+	var storage = window.localStorage;
+
+	var loginField = header.view.querySelector('#loginField');
+	var loginSubmit = header.view.querySelector('#loginSubmit');
+	var loginHandler = function () {
+		var username = loginField.value;
+		if (!username) return;
+		self.username = username;
+		loginSubmit.value = 'Sign out';
+		storage.setItem('user', username);
+
+		var req = new YouTubeDataRequest({
+			type: 'newvideos'
+			, username: username
+			, maxResults: 30
+		});
+
+		grid.loadContent(req, 'New videos');
+	};
+	var logoutHandler = function () {
+		self.username = '';
+		loginField.value = '';
+		loginSubmit.value = 'Sign in';
+		storage.removeItem('user');
+	};
+
+	var user = storage.getItem('user');
+	if (user) {
+		self.username = user;
+		loginSubmit.value = 'Sign out';
+		loginField.value = user;
+		var req = new YouTubeDataRequest({
+			type: 'newvideos'
+			, username: user
+			, maxResults: 30
+		});
+
+		grid.loadContent(req, 'New videos');
+		loginSubmit.removeEventListener('click', loginHandler, false);
+		loginSubmit.addEventListener('click', logoutHandler, false);
+	}
+	else {
+		loginSubmit.removeEventListener('click', logoutHandler, false);
+		loginSubmit.addEventListener('click', loginHandler, false);
+	}
+}
+
+module.exports = User;
+},{"./youtube-data-request.js":7}],8:[function(require,module,exports){
+var YouTubeDataRequest = require('./youtube-data-request.js');
 
 function Header (dom) {
-	this.view = dom;
+	var self = this;
+	self.view = dom;
+
+	dom.querySelector('.yt').addEventListener('click', function () {
+		if (!self.user.username) return;
+		var req = new YouTubeDataRequest({
+			type: 'newvideos'
+			, username: self.user.username
+			, maxResults: 30
+		});
+
+		self.grid.loadContent(req, 'New videos');
+	}, false);
 }
 
-function Spinner (dom) {
-	this.view = dom;
-	this.state = 'HIDDEN';
-}
-
-Spinner.prototype.start = function () {
-	this.view.classList.add('loading');
-	this.view.parentNode.querySelector('.yt').classList.add('loading');
-	this.state = 'ACTIVE';
-};
-
-Spinner.prototype.end = function () {
-	this.view.parentNode.querySelector('.yt').classList.remove('loading');
-	this.view.classList.remove('loading');
-	this.state = 'HIDDEN';
-};
+module.exports = Header;
+},{"./youtube-data-request.js":7}],2:[function(require,module,exports){
+var $ = require('huk-browserify');
+var Elapsed = require('elapsed');
+var Video = require('./video.js');
 
 function Player (dom) {
 	var self = this;
@@ -180,7 +268,7 @@ Player.prototype.startPlaying = function() {
 	infos.innerHTML = '';
 	$()
 		.div({ 'class': 'title' }, self.data.title.$t)
-		.div({ 'class': 'views' }, self.data.yt$statistics.viewCount)
+		.div({ 'class': 'views' }, Number(self.data.yt$statistics.viewCount).toLocaleString())
 		.div({ 'class': 'date', title: (new Date(self.data.media$group.yt$uploaded.$t)).toLocaleString() },
 			(new Elapsed(new Date(self.data.media$group.yt$uploaded.$t))).optimal + ' ago')
 		.img({ src: 'https://i.ytimg.com/i/' + self.data.author[0].yt$userId.$t + '/1.jpg' })
@@ -209,7 +297,6 @@ Player.prototype.startPlaying = function() {
 				if (self.control.getPlayerState() === YT.PlayerState.ENDED && self.playlist) {
 					console.log(self.playlist, self.playlistItemNumber);
 					var nextItemNumber = self.playlistItemNumber + 1 === self.playlist.list.videos.length ? 0 : self.playlistItemNumber + 1;
-					console.log(self.playlistItemNumber, nextItemNumber, self.playlist.list.videos.length)
 					self.playlistItemNumber = nextItemNumber;
 
 					var parent = self.view.querySelector('iframe').parentNode;
@@ -249,6 +336,54 @@ Player.prototype.close = function () {
 	parent.appendChild($.div({ 'id': 'player' }));
 };
 
+module.exports = Player;
+},{"./video.js":9,"huk-browserify":10,"elapsed":11}],3:[function(require,module,exports){
+var $ = require('huk-browserify');
+var Video = require('./video.js');
+
+function Playlist (dom) {
+	this.view = dom;
+	this.list = {
+		videos: []
+		, view: dom.querySelector('ul')
+	};
+}
+
+Playlist.prototype.add = function(video) {
+	if (!video instanceof Video) return;
+	var self = this;
+
+	var dom = $.li({ title: video.data.title.$t }, $()
+		.a(document.querySelector('.player .close').innerHTML)
+		.img({ src: 'http://i3.ytimg.com/vi/' + video.data.media$group.yt$videoid.$t + '/mqdefault.jpg' }));
+	video.view = dom;
+	self.list.videos.push(video);
+	var itemNumber = self.list.videos.length - 1;
+
+	dom.querySelector('a').addEventListener('click', function (event) {
+		event.stopPropagation();
+		self.list.videos.splice(self.list.videos.indexOf(video), 1);
+		dom.style.webkitTransform = 'scale(0)';
+		dom.style.mozTransform = 'scale(0)';
+		dom.style.opacity = '0';
+		var handler = function () { dom.parentNode.removeChild(dom); };
+		dom.addEventListener('webkitTransitionEnd', handler, false);
+		dom.addEventListener('mozTransitionEnd', handler, false);
+	}, false);
+
+	dom.addEventListener('click', function (event) {
+		video.player.start(video);
+		video.player.playlist = self;
+		video.player.playlistItemNumber = itemNumber;
+	}, false);
+
+	self.list.view.appendChild(dom);
+	setTimeout(function () { dom.style.webkitTransform = 'scale(1)'; }, 1);
+};
+
+module.exports = Playlist;
+},{"./video.js":9,"huk-browserify":10}],7:[function(require,module,exports){
+var request = require('browser-request');
 
 function YouTubeDataRequest (options) {
 	var self = this;
@@ -287,174 +422,1200 @@ YouTubeDataRequest.prototype.fetch = function (callback) {
 	});
 };
 
-function User (header, grid) {
-	var self = this;
-	var storage = window.localStorage;
+module.exports = YouTubeDataRequest;
+},{"browser-request":12}],11:[function(require,module,exports){
+function Elapsed (from, to) {
+	this.from = from;
+	this.to = to || new Date();
+	if (!(this.from instanceof Date && this.to instanceof Date)) return;
 
-	var loginField = header.view.querySelector('#loginField');
-	var loginSubmit = header.view.querySelector('#loginSubmit');
-	var loginHandler = function () {
-		var username = loginField.value;
-		if (!username) return;
-		self.username = username;
-		loginSubmit.value = 'Sign out';
-		storage.setItem('user', username);
-
-		var req = new YouTubeDataRequest({
-			type: 'newvideos'
-			, username: username
-			, maxResults: 30
-		});
-
-		grid.loadContent(req, 'New videos');
-	};
-	var logoutHandler = function () {
-		self.username = '';
-		loginField.value = '';
-		loginSubmit.value = 'Sign in';
-		storage.removeItem('user');
-	};
-
-	var user = storage.getItem('user');
-	if (user) {
-		loginSubmit.value = 'Sign out';
-		loginField.value = user;
-		var req = new YouTubeDataRequest({
-			type: 'newvideos'
-			, username: user
-			, maxResults: 30
-		});
-
-		grid.loadContent(req, 'New videos');
-		loginSubmit.removeEventListener('click', loginHandler, false);
-		loginSubmit.addEventListener('click', logoutHandler, false);
-	}
-	else {
-		loginSubmit.removeEventListener('click', logoutHandler, false);
-		loginSubmit.addEventListener('click', loginHandler, false);
-	}
-
+	this.set();
 }
 
+Elapsed.prototype.set = function() {
+	this.elapsedTime = this.to - this.from;
 
-function Playlist (dom) {
-	this.view = dom;
-	this.list = {
-		videos: []
-		, view: dom.querySelector('ul')
-	};
-}
+	this.milliSeconds = this.elapsedTime;
+	var divider = 1000;
+	this.seconds = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 60;
+	this.minutes = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 60;
+	this.hours = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 24;
+	this.days = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 7;
+	this.weeks = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= (30 / 7);
+	this.months = { num: Math.floor(this.elapsedTime / divider) };
+	divider = divider / (30 / 7) / 7 * 365;
+	this.years = { num: Math.floor(this.elapsedTime / divider) };
 
-Playlist.prototype.add = function(video) {
-	if (!video instanceof Video) return;
-	var self = this;
+	this.seconds.text = this.seconds.num + ' second' + (this.seconds.num < 2 ? '' : 's');
+	this.minutes.text = this.minutes.num + ' minute' + (this.minutes.num < 2 ? '' : 's');
+	this.hours.text = this.hours.num + ' hour' + (this.hours.num < 2 ? '' : 's');
+	this.days.text = this.days.num + ' day' + (this.days.num < 2 ? '' : 's');
+	this.weeks.text = this.weeks.num + ' week' + (this.weeks.num < 2 ? '' : 's');
+	this.months.text = this.months.num + ' month' + (this.months.num < 2 ? '' : 's');
+	this.years.text = this.years.num + ' year' + (this.years.num < 2 ? '' : 's');
 
-	var dom = $.li({ title: video.data.title.$t }, $()
-		.a(document.querySelector('.player .close').innerHTML)
-		.img({ src: 'http://i3.ytimg.com/vi/' + video.data.media$group.yt$videoid.$t + '/mqdefault.jpg' }));
-	video.view = dom;
-	self.list.videos.push(video);
-	var itemNumber = self.list.videos.length - 1;
+	if (this.years.num > 0) this.optimal = this.years.text;
+	else if (this.months.num > 0) this.optimal = this.months.text;
+	else if (this.weeks.num > 0) this.optimal = this.weeks.text;
+	else if (this.days.num > 0) this.optimal = this.days.text;
+	else if (this.hours.num > 0) this.optimal = this.hours.text;
+	else if (this.minutes.num > 0) this.optimal = this.minutes.text;
+	else if (this.seconds.num > 0) this.optimal = this.seconds.text;
 
-	dom.querySelector('a').addEventListener('click', function (event) {
-		event.stopPropagation();
-		self.list.videos.splice(self.list.videos.indexOf(video));
-		dom.style.webkitTransform = 'scale(0)';
-		dom.style.mozTransform = 'scale(0)';
-		dom.style.opacity = '0';
-		var handler = function () { dom.parentNode.removeChild(dom); };
-		dom.addEventListener('webkitTransitionEnd', handler, false);
-		dom.addEventListener('mozTransitionEnd', handler, false);
-	}, false);
-
-	dom.addEventListener('click', function (event) {
-		video.player.start(video);
-		video.player.playlist = self;
-		video.player.playlistItemNumber = itemNumber;
-	}, false);
-
-	self.list.view.appendChild(dom);
-	setTimeout(function () { dom.style.webkitTransform = 'scale(1)'; }, 1);
-
+	return this;
 };
 
+Elapsed.prototype.refresh = function(to) {
+	if (!to) this.to = new Date();
+	else this.to = to;
+	if (!this.to instanceof Date) return;
 
-window.onload = function () {
+	return this.set();
+};
 
+module.exports = Elapsed;
+},{}],9:[function(require,module,exports){
+var $ = require('huk-browserify');
+var Elapsed = require('elapsed');
+var YouTubeDataRequest = require('./youtube-data-request.js');
 
+function Video (data, player, grid, playlist) {
+	this.data = data;
+	this.player = player;
+	this.grid = grid;
+	this.playlist = playlist;
 
-var tag = document.createElement('script');
-tag.src = "https://www.youtube.com/iframe_api";
-var firstScriptTag = document.getElementsByTagName('script')[0];
-firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+	this.setupView(this.data);
 
-var header = new Header(document.querySelector('.container > header'));
-var player = new Player(document.querySelector('.player'));
-var playlist = new Playlist(document.querySelector('.playlist'));
-var grid = new Grid(document.querySelector('.container > section'));
-window.player = player;
+	//this.loaded = function ()
+}
 
-header.spinner = new Spinner(document.querySelector('.container > header .spinner'));
+Video.prototype.setupView = function (data) {
+	var self = this;
+	if (data !== self.data) self.data = data;
+	if (!data) data = self.data;
 
-grid.playlist = playlist;
-grid.player = player;
-grid.spinner = header.spinner;
+	if (!self.data.yt$statistics) self.data.yt$statistics = { viewCount: '0' };
 
-playlist.grid = grid;
-
-var homeUser = new User(header, grid);
-
-document.querySelector('.yt').addEventListener('click', function () {
-	if (!homeUser.username) return;
-	var req = new YouTubeDataRequest({
-		type: 'newvideos'
-		, username: homeUser.username
-		, maxResults: 30
-	});
-
-	grid.loadContent(req, 'New videos');
-}, false);
-
-
-window.addEventListener('scroll', function (event) {
-	var body = document.querySelector('body');
-
-	if (body.scrollHeight === body.scrollTop + body.clientHeight) grid.appendContent();
-
-}, false);
-
-
-header.view.querySelector('#searchSubmit').addEventListener('click', function (event) {
-	var key = header.view.querySelector('#searchField').value;
-	var req = new YouTubeDataRequest({
-		type: 'search'
-		, key: key
-		, orderBy: 'relevance'
-	});
-	grid.loadContent(req, 'Search results for ' + key);
-}, false);
-
-window.addEventListener('resize', function () {
-	var height = player.view.offsetHeight - player.view.querySelector('.infos').offsetHeight;
-	var container = player.view.querySelector('.video-container-outer');
-	var playerHeight = container.offsetHeight;
-	if (height === 0) return;
-	if (height > playerHeight) {
-		container.style.width = 'auto';
-	}
-	else {
-		var newWidth = 16 / 9 * height;
-		container.style.width = newWidth + 'px';
+	var sec = self.data.media$group.yt$duration.seconds;
+	var s = '';
+	var hours = ~~(sec / 3600);
+	if (hours > 0) {
+		s += hours + ':';
+		sec %= hours * 3600;
 	}
 
+	var minutes = ~~(sec / 60);
+	if (minutes === 0) s += '00:';
+	if (minutes > 0) {
+		if (minutes < 10) s += '0' + minutes + ':';
+		else s += minutes + ':';
+		sec %= minutes * 60;
+	}
+
+	if (sec < 10) s += '0' + sec;
+	else s += sec;
+
+	var duration = s;
+
+
+	self.view = $.div({ 'class': 'video'}, 
+		$()
+			.img({ src: 'http://i3.ytimg.com/vi/' + self.data.media$group.yt$videoid.$t + '/mqdefault.jpg' })
+			.div({ 'class': 'title', title: self.data.title.$t }, self.data.title.$t.length > 40 ? self.data.title.$t.slice(0, 38) + '...' : self.data.title.$t)
+			.div({ 'class': 'duration' }, duration)
+			.div({ 'class': 'views' }, Number(self.data.yt$statistics.viewCount).toLocaleString())
+			.div({ 'class': 'date', title: (new Date(self.data.media$group.yt$uploaded.$t)).toLocaleString() },
+				(new Elapsed(new Date(self.data.media$group.yt$uploaded.$t))).optimal + ' ago')
+			.div({ 'class': 'uploader' }, self.data.author[0].name.$t)
+			.button({ 'class': 'plus' }, '+'));
+	if (!self.player) return self.view;
+
+	var handler = function () {
+		self.player.start(self);
+		self.player.playlist = undefined;
+		self.player.playlistItemNumber = undefined;
+	};
+
+	self.view.querySelector('img').addEventListener('click', handler, false);
+	self.view.querySelector('.title').addEventListener('click', handler, false);
+	self.view.querySelector('.uploader').addEventListener('click', function () {
+		var name = this.innerHTML;
+		var req = new YouTubeDataRequest({
+			type: 'uservideos'
+			, uri: self.data.author[0].uri.$t
+		});
+		self.grid.loadContent(req, name);
+	}, false);
+
+	self.view.querySelector('.plus').addEventListener('click', function () {
+		self.playlist.add(self);
+	}, false);
+
+	return self.view;
+};
+
+module.exports = Video;
+},{"./youtube-data-request.js":7,"huk-browserify":10,"elapsed":11}],12:[function(require,module,exports){
+(function(){// Browser Request
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+var xmlhttprequest = require('./xmlhttprequest')
+if(!xmlhttprequest || typeof xmlhttprequest !== 'object')
+  throw new Error('Could not find ./xmlhttprequest')
+
+var XHR = xmlhttprequest.XMLHttpRequest
+if(!XHR)
+  throw new Error('Bad xmlhttprequest.XMLHttpRequest')
+if(! ('_object' in (new XHR)))
+  throw new Error('This is not portable XMLHttpRequest')
+
+module.exports = request
+request.XMLHttpRequest = XHR
+request.log = getLogger()
+
+var DEFAULT_TIMEOUT = 3 * 60 * 1000 // 3 minutes
+
+//
+// request
+//
+
+function request(options, callback) {
+  // The entry-point to the API: prep the options object and pass the real work to run_xhr.
+  if(typeof callback !== 'function')
+    throw new Error('Bad callback given: ' + callback)
+
+  if(!options)
+    throw new Error('No options given')
+
+  var options_onResponse = options.onResponse; // Save this for later.
+
+  if(typeof options === 'string')
+    options = {'uri':options};
+  else
+    options = JSON.parse(JSON.stringify(options)); // Use a duplicate for mutating.
+
+  options.onResponse = options_onResponse // And put it back.
+
+  if(options.url) {
+    options.uri = options.url;
+    delete options.url;
+  }
+
+  if(!options.uri && options.uri !== "")
+    throw new Error("options.uri is a required argument");
+
+  if(typeof options.uri != "string")
+    throw new Error("options.uri must be a string");
+
+  var unsupported_options = ['proxy', '_redirectsFollowed', 'maxRedirects', 'followRedirect']
+  for (var i = 0; i < unsupported_options.length; i++)
+    if(options[ unsupported_options[i] ])
+      throw new Error("options." + unsupported_options[i] + " is not supported")
+
+  options.callback = callback
+  options.method = options.method || 'GET';
+  options.headers = options.headers || {};
+  options.body    = options.body || null
+  options.timeout = options.timeout || request.DEFAULT_TIMEOUT
+
+  if(options.headers.host)
+    throw new Error("Options.headers.host is not supported");
+
+  if(options.json) {
+    options.headers.accept = options.headers.accept || 'application/json'
+    if(options.method !== 'GET')
+      options.headers['content-type'] = 'application/json'
+
+    if(typeof options.json !== 'boolean')
+      options.body = JSON.stringify(options.json)
+    else if(typeof options.body !== 'string')
+      options.body = JSON.stringify(options.body)
+  }
+
+  // If onResponse is boolean true, call back immediately when the response is known,
+  // not when the full request is complete.
+  options.onResponse = options.onResponse || noop
+  if(options.onResponse === true) {
+    options.onResponse = callback
+    options.callback = noop
+  }
+
+  // XXX Browsers do not like this.
+  //if(options.body)
+  //  options.headers['content-length'] = options.body.length;
+
+  // HTTP basic authentication
+  if(!options.headers.authorization && options.auth)
+    options.headers.authorization = 'Basic ' + b64_enc(options.auth.username + ':' + options.auth.password);
+
+  return run_xhr(options)
+}
+
+var req_seq = 0
+function run_xhr(options) {
+  var xhr = new XHR
+    , timed_out = false
+    , is_cors = is_crossDomain(options.uri)
+    , supports_cors = ('withCredentials' in xhr._object)
+
+  req_seq += 1
+  xhr.seq_id = req_seq
+  xhr.id = req_seq + ': ' + options.method + ' ' + options.uri
+  xhr._id = xhr.id // I know I will type "_id" from habit all the time.
+
+  if(is_cors && !supports_cors) {
+    var cors_err = new Error('Browser does not support cross-origin request: ' + options.uri)
+    cors_err.cors = 'unsupported'
+    return options.callback(cors_err, xhr)
+  }
+
+  xhr.timeoutTimer = setTimeout(too_late, options.timeout)
+  function too_late() {
+    timed_out = true
+    var er = new Error('ETIMEDOUT')
+    er.code = 'ETIMEDOUT'
+    er.duration = options.timeout
+
+    request.log.error('Timeout', { 'id':xhr._id, 'milliseconds':options.timeout })
+    return options.callback(er, xhr)
+  }
+
+  // Some states can be skipped over, so remember what is still incomplete.
+  var did = {'response':false, 'loading':false, 'end':false}
+
+  xhr.onreadystatechange = on_state_change
+  xhr.open(options.method, options.uri, true) // asynchronous
+  if(is_cors)
+    xhr._object.withCredentials = !! options.withCredentials
+  xhr.send(options.body)
+  return xhr
+
+  function on_state_change(event) {
+    if(timed_out)
+      return request.log.debug('Ignoring timed out state change', {'state':xhr.readyState, 'id':xhr.id})
+
+    request.log.debug('State change', {'state':xhr.readyState, 'id':xhr.id, 'timed_out':timed_out})
+
+    if(xhr.readyState === XHR.OPENED) {
+      request.log.debug('Request started', {'id':xhr.id})
+      for (var key in options.headers)
+        xhr.setRequestHeader(key, options.headers[key])
+    }
+
+    else if(xhr.readyState === XHR.HEADERS_RECEIVED)
+      on_response()
+
+    else if(xhr.readyState === XHR.LOADING) {
+      on_response()
+      on_loading()
+    }
+
+    else if(xhr.readyState === XHR.DONE) {
+      on_response()
+      on_loading()
+      on_end()
+    }
+  }
+
+  function on_response() {
+    if(did.response)
+      return
+
+    did.response = true
+    request.log.debug('Got response', {'id':xhr.id, 'status':xhr.status})
+    clearTimeout(xhr.timeoutTimer)
+    xhr.statusCode = xhr.status // Node request compatibility
+
+    // Detect failed CORS requests.
+    if(is_cors && xhr.statusCode == 0) {
+      var cors_err = new Error('CORS request rejected: ' + options.uri)
+      cors_err.cors = 'rejected'
+
+      // Do not process this request further.
+      did.loading = true
+      did.end = true
+
+      return options.callback(cors_err, xhr)
+    }
+
+    options.onResponse(null, xhr)
+  }
+
+  function on_loading() {
+    if(did.loading)
+      return
+
+    did.loading = true
+    request.log.debug('Response body loading', {'id':xhr.id})
+    // TODO: Maybe simulate "data" events by watching xhr.responseText
+  }
+
+  function on_end() {
+    if(did.end)
+      return
+
+    did.end = true
+    request.log.debug('Request done', {'id':xhr.id})
+
+    xhr.body = xhr.responseText
+    if(options.json) {
+      try        { xhr.body = JSON.parse(xhr.responseText) }
+      catch (er) { return options.callback(er, xhr)        }
+    }
+
+    options.callback(null, xhr, xhr.body)
+  }
+
+} // request
+
+request.withCredentials = false;
+request.DEFAULT_TIMEOUT = DEFAULT_TIMEOUT;
+
+//
+// HTTP method shortcuts
+//
+
+var shortcuts = [ 'get', 'put', 'post', 'head' ];
+shortcuts.forEach(function(shortcut) {
+  var method = shortcut.toUpperCase();
+  var func   = shortcut.toLowerCase();
+
+  request[func] = function(opts) {
+    if(typeof opts === 'string')
+      opts = {'method':method, 'uri':opts};
+    else {
+      opts = JSON.parse(JSON.stringify(opts));
+      opts.method = method;
+    }
+
+    var args = [opts].concat(Array.prototype.slice.apply(arguments, [1]));
+    return request.apply(this, args);
+  }
+})
+
+//
+// CouchDB shortcut
+//
+
+request.couch = function(options, callback) {
+  if(typeof options === 'string')
+    options = {'uri':options}
+
+  // Just use the request API to do JSON.
+  options.json = true
+  if(options.body)
+    options.json = options.body
+  delete options.body
+
+  callback = callback || noop
+
+  var xhr = request(options, couch_handler)
+  return xhr
+
+  function couch_handler(er, resp, body) {
+    if(er)
+      return callback(er, resp, body)
+
+    if((resp.statusCode < 200 || resp.statusCode > 299) && body.error) {
+      // The body is a Couch JSON object indicating the error.
+      er = new Error('CouchDB error: ' + (body.error.reason || body.error.error))
+      for (var key in body)
+        er[key] = body[key]
+      return callback(er, resp, body);
+    }
+
+    return callback(er, resp, body);
+  }
+}
+
+//
+// Utility
+//
+
+function noop() {}
+
+function getLogger() {
+  var logger = {}
+    , levels = ['trace', 'debug', 'info', 'warn', 'error']
+    , level, i
+
+  for(i = 0; i < levels.length; i++) {
+    level = levels[i]
+
+    logger[level] = noop
+    if(typeof console !== 'undefined' && console && console[level])
+      logger[level] = formatted(console, level)
+  }
+
+  return logger
+}
+
+function formatted(obj, method) {
+  return formatted_logger
+
+  function formatted_logger(str, context) {
+    if(typeof context === 'object')
+      str += ' ' + JSON.stringify(context)
+
+    return obj[method].call(obj, str)
+  }
+}
+
+// Return whether a URL is a cross-domain request.
+function is_crossDomain(url) {
+  var rurl = /^([\w\+\.\-]+:)(?:\/\/([^\/?#:]*)(?::(\d+))?)?/
+
+  // jQuery #8138, IE may throw an exception when accessing
+  // a field from window.location if document.domain has been set
+  var ajaxLocation
+  try { ajaxLocation = location.href }
+  catch (e) {
+    // Use the href attribute of an A element since IE will modify it given document.location
+    ajaxLocation = document.createElement( "a" );
+    ajaxLocation.href = "";
+    ajaxLocation = ajaxLocation.href;
+  }
+
+  var ajaxLocParts = rurl.exec(ajaxLocation.toLowerCase()) || []
+    , parts = rurl.exec(url.toLowerCase() )
+
+  var result = !!(
+    parts &&
+    (  parts[1] != ajaxLocParts[1]
+    || parts[2] != ajaxLocParts[2]
+    || (parts[3] || (parts[1] === "http:" ? 80 : 443)) != (ajaxLocParts[3] || (ajaxLocParts[1] === "http:" ? 80 : 443))
+    )
+  )
+
+  //console.debug('is_crossDomain('+url+') -> ' + result)
+  return result
+}
+
+// MIT License from http://phpjs.org/functions/base64_encode:358
+function b64_enc (data) {
+    // Encodes string using MIME base64 algorithm
+    var b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    var o1, o2, o3, h1, h2, h3, h4, bits, i = 0, ac = 0, enc="", tmp_arr = [];
+
+    if (!data) {
+        return data;
+    }
+
+    // assume utf8 data
+    // data = this.utf8_encode(data+'');
+
+    do { // pack three octets into four hexets
+        o1 = data.charCodeAt(i++);
+        o2 = data.charCodeAt(i++);
+        o3 = data.charCodeAt(i++);
+
+        bits = o1<<16 | o2<<8 | o3;
+
+        h1 = bits>>18 & 0x3f;
+        h2 = bits>>12 & 0x3f;
+        h3 = bits>>6 & 0x3f;
+        h4 = bits & 0x3f;
+
+        // use hexets to index into b64, and append result to encoded string
+        tmp_arr[ac++] = b64.charAt(h1) + b64.charAt(h2) + b64.charAt(h3) + b64.charAt(h4);
+    } while (i < data.length);
+
+    enc = tmp_arr.join('');
+
+    switch (data.length % 3) {
+        case 1:
+            enc = enc.slice(0, -2) + '==';
+        break;
+        case 2:
+            enc = enc.slice(0, -1) + '=';
+        break;
+    }
+
+    return enc;
+}
+
+})()
+},{"./xmlhttprequest":13}],13:[function(require,module,exports){
+(function(){
+
+!function(window) {
+  if(typeof exports === 'undefined')
+    throw new Error('Cannot find global "exports" object. Is this really CommonJS?')
+  if(typeof module === 'undefined')
+    throw new Error('Cannot find global "module" object. Is this really CommonJS?')
+  if(!module.exports)
+    throw new Error('Cannot find global "module.exports" object. Is this really CommonJS?')
+
+  // Define globals to simulate a browser environment.
+  window = window || {}
+
+  var document = window.document || {}
+  if(!window.document)
+    window.document = document
+
+  var navigator = window.navigator || {}
+  if(!window.navigator)
+    window.navigator = navigator
+
+  if(!navigator.userAgent)
+    navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_2) AppleWebKit/534.51.22 (KHTML, like Gecko) Version/5.1.1 Safari/534.51.22';
+
+  // Remember the old values in window. If the inner code changes anything, export that as a module and restore the old window value.
+  var win = {}
+    , key
+
+  for (key in window)
+    if(window.hasOwnProperty(key))
+      win[key] = window[key]
+
+  run_code()
+
+  for (key in window)
+    if(window.hasOwnProperty(key))
+      if(window[key] !== win[key]) {
+        exports[key] = window[key]
+        window[key] = win[key]
+      }
+
+  function run_code() {
+    // Begin browser file: XMLHttpRequest.js
+/**
+* XMLHttpRequest.js Copyright (C) 2011 Sergey Ilinsky (http://www.ilinsky.com)
+*
+* This work is free software; you can redistribute it and/or modify
+* it under the terms of the GNU Lesser General Public License as published by
+* the Free Software Foundation; either version 2.1 of the License, or
+* (at your option) any later version.
+*
+* This work is distributed in the hope that it will be useful,
+* but without any warranty; without even the implied warranty of
+* merchantability or fitness for a particular purpose. See the
+* GNU Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public License
+* along with this library; if not, write to the Free Software Foundation, Inc.,
+* 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+*/
+
+(function () {
+
+	// Save reference to earlier defined object implementation (if any)
+	var oXMLHttpRequest = window.XMLHttpRequest;
+
+	// Define on browser type
+	var bGecko  = !!window.controllers;
+	var bIE     = !!window.document.namespaces;
+	var bIE7    = bIE && window.navigator.userAgent.match(/MSIE 7.0/);
+
+	// Enables "XMLHttpRequest()" call next to "new XMLHttpRequest()"
+	function fXMLHttpRequest() {
+		this._object  = oXMLHttpRequest && !bIE7 ? new oXMLHttpRequest : new window.ActiveXObject("Microsoft.XMLHTTP");
+		this._listeners = [];
+	}
+
+	// Constructor
+	function cXMLHttpRequest() {
+		return new fXMLHttpRequest;
+	}
+	cXMLHttpRequest.prototype = fXMLHttpRequest.prototype;
+
+	// BUGFIX: Firefox with Firebug installed would break pages if not executed
+	if (bGecko && oXMLHttpRequest.wrapped) {
+		cXMLHttpRequest.wrapped = oXMLHttpRequest.wrapped;
+	}
+
+	// Constants
+	cXMLHttpRequest.UNSENT            = 0;
+	cXMLHttpRequest.OPENED            = 1;
+	cXMLHttpRequest.HEADERS_RECEIVED  = 2;
+	cXMLHttpRequest.LOADING           = 3;
+	cXMLHttpRequest.DONE              = 4;
+
+	// Interface level constants
+	cXMLHttpRequest.prototype.UNSENT            = cXMLHttpRequest.UNSENT;
+	cXMLHttpRequest.prototype.OPENED            = cXMLHttpRequest.OPENED;
+	cXMLHttpRequest.prototype.HEADERS_RECEIVED  = cXMLHttpRequest.HEADERS_RECEIVED;
+	cXMLHttpRequest.prototype.LOADING           = cXMLHttpRequest.LOADING;
+	cXMLHttpRequest.prototype.DONE              = cXMLHttpRequest.DONE;
+
+	// Public Properties
+	cXMLHttpRequest.prototype.readyState    = cXMLHttpRequest.UNSENT;
+	cXMLHttpRequest.prototype.responseText  = '';
+	cXMLHttpRequest.prototype.responseXML   = null;
+	cXMLHttpRequest.prototype.status        = 0;
+	cXMLHttpRequest.prototype.statusText    = '';
+
+	// Priority proposal
+	cXMLHttpRequest.prototype.priority    = "NORMAL";
+
+	// Instance-level Events Handlers
+	cXMLHttpRequest.prototype.onreadystatechange  = null;
+
+	// Class-level Events Handlers
+	cXMLHttpRequest.onreadystatechange  = null;
+	cXMLHttpRequest.onopen              = null;
+	cXMLHttpRequest.onsend              = null;
+	cXMLHttpRequest.onabort             = null;
+
+	// Public Methods
+	cXMLHttpRequest.prototype.open  = function(sMethod, sUrl, bAsync, sUser, sPassword) {
+		// http://www.w3.org/TR/XMLHttpRequest/#the-open-method
+		var sLowerCaseMethod = sMethod.toLowerCase();
+		if (sLowerCaseMethod == "connect" || sLowerCaseMethod == "trace" || sLowerCaseMethod == "track") {
+			// Using a generic error and an int - not too sure all browsers support correctly
+			// http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#securityerror, so, this is safer
+			// XXX should do better than that, but this is OT to XHR.
+			throw new Error(18);
+		}
+
+		// Delete headers, required when object is reused
+		delete this._headers;
+
+		// When bAsync parameter value is omitted, use true as default
+		if (arguments.length < 3) {
+			bAsync  = true;
+		}
+
+		// Save async parameter for fixing Gecko bug with missing readystatechange in synchronous requests
+		this._async   = bAsync;
+
+		// Set the onreadystatechange handler
+		var oRequest  = this;
+		var nState    = this.readyState;
+		var fOnUnload = null;
+
+		// BUGFIX: IE - memory leak on page unload (inter-page leak)
+		if (bIE && bAsync) {
+			fOnUnload = function() {
+				if (nState != cXMLHttpRequest.DONE) {
+					fCleanTransport(oRequest);
+					// Safe to abort here since onreadystatechange handler removed
+					oRequest.abort();
+				}
+			};
+			window.attachEvent("onunload", fOnUnload);
+		}
+
+		// Add method sniffer
+		if (cXMLHttpRequest.onopen) {
+			cXMLHttpRequest.onopen.apply(this, arguments);
+		}
+
+		if (arguments.length > 4) {
+			this._object.open(sMethod, sUrl, bAsync, sUser, sPassword);
+		} else if (arguments.length > 3) {
+			this._object.open(sMethod, sUrl, bAsync, sUser);
+		} else {
+			this._object.open(sMethod, sUrl, bAsync);
+		}
+
+		this.readyState = cXMLHttpRequest.OPENED;
+		fReadyStateChange(this);
+
+		this._object.onreadystatechange = function() {
+			if (bGecko && !bAsync) {
+				return;
+			}
+
+			// Synchronize state
+			oRequest.readyState   = oRequest._object.readyState;
+			fSynchronizeValues(oRequest);
+
+			// BUGFIX: Firefox fires unnecessary DONE when aborting
+			if (oRequest._aborted) {
+				// Reset readyState to UNSENT
+				oRequest.readyState = cXMLHttpRequest.UNSENT;
+
+				// Return now
+				return;
+			}
+
+			if (oRequest.readyState == cXMLHttpRequest.DONE) {
+				// Free up queue
+				delete oRequest._data;
+
+				// Uncomment these lines for bAsync
+				/**
+				 * if (bAsync) {
+				 * 	fQueue_remove(oRequest);
+				 * }
+				 */
+
+				fCleanTransport(oRequest);
+
+				// Uncomment this block if you need a fix for IE cache
+				/**
+				 * // BUGFIX: IE - cache issue
+				 * if (!oRequest._object.getResponseHeader("Date")) {
+				 * 	// Save object to cache
+				 * 	oRequest._cached  = oRequest._object;
+				 *
+				 * 	// Instantiate a new transport object
+				 * 	cXMLHttpRequest.call(oRequest);
+				 *
+				 * 	// Re-send request
+				 * 	if (sUser) {
+				 * 		if (sPassword) {
+				 * 			oRequest._object.open(sMethod, sUrl, bAsync, sUser, sPassword);
+				 * 		} else {
+				 * 			oRequest._object.open(sMethod, sUrl, bAsync);
+				 * 		}
+				 *
+				 * 		oRequest._object.setRequestHeader("If-Modified-Since", oRequest._cached.getResponseHeader("Last-Modified") || new window.Date(0));
+				 * 		// Copy headers set
+				 * 		if (oRequest._headers) {
+				 * 			for (var sHeader in oRequest._headers) {
+				 * 				// Some frameworks prototype objects with functions
+				 * 				if (typeof oRequest._headers[sHeader] == "string") {
+				 * 					oRequest._object.setRequestHeader(sHeader, oRequest._headers[sHeader]);
+				 * 				}
+				 * 			}
+				 * 		}
+				 * 		oRequest._object.onreadystatechange = function() {
+				 * 			// Synchronize state
+				 * 			oRequest.readyState   = oRequest._object.readyState;
+				 *
+				 * 			if (oRequest._aborted) {
+				 * 				//
+				 * 				oRequest.readyState = cXMLHttpRequest.UNSENT;
+				 *
+				 * 				// Return
+				 * 				return;
+				 * 			}
+				 *
+				 * 			if (oRequest.readyState == cXMLHttpRequest.DONE) {
+				 * 				// Clean Object
+				 * 				fCleanTransport(oRequest);
+				 *
+				 * 				// get cached request
+				 * 				if (oRequest.status == 304) {
+				 * 					oRequest._object  = oRequest._cached;
+				 * 				}
+				 *
+				 * 				//
+				 * 				delete oRequest._cached;
+				 *
+				 * 				//
+				 * 				fSynchronizeValues(oRequest);
+				 *
+				 * 				//
+				 * 				fReadyStateChange(oRequest);
+				 *
+				 * 				// BUGFIX: IE - memory leak in interrupted
+				 * 				if (bIE && bAsync) {
+				 * 					window.detachEvent("onunload", fOnUnload);
+				 * 				}
+				 *
+				 * 			}
+				 * 		};
+				 * 		oRequest._object.send(null);
+				 *
+				 * 		// Return now - wait until re-sent request is finished
+				 * 		return;
+				 * 	};
+				 */
+
+				// BUGFIX: IE - memory leak in interrupted
+				if (bIE && bAsync) {
+					window.detachEvent("onunload", fOnUnload);
+				}
+
+				// BUGFIX: Some browsers (Internet Explorer, Gecko) fire OPEN readystate twice
+				if (nState != oRequest.readyState) {
+					fReadyStateChange(oRequest);
+				}
+
+				nState  = oRequest.readyState;
+			}
+		};
+	};
+
+	cXMLHttpRequest.prototype.send = function(vData) {
+		// Add method sniffer
+		if (cXMLHttpRequest.onsend) {
+			cXMLHttpRequest.onsend.apply(this, arguments);
+		}
+
+		if (!arguments.length) {
+			vData = null;
+		}
+
+		// BUGFIX: Safari - fails sending documents created/modified dynamically, so an explicit serialization required
+		// BUGFIX: IE - rewrites any custom mime-type to "text/xml" in case an XMLNode is sent
+		// BUGFIX: Gecko - fails sending Element (this is up to the implementation either to standard)
+		if (vData && vData.nodeType) {
+			vData = window.XMLSerializer ? new window.XMLSerializer().serializeToString(vData) : vData.xml;
+			if (!this._headers["Content-Type"]) {
+				this._object.setRequestHeader("Content-Type", "application/xml");
+			}
+		}
+
+		this._data = vData;
+
+		/**
+		 * // Add to queue
+		 * if (this._async) {
+		 * 	fQueue_add(this);
+		 * } else { */
+		fXMLHttpRequest_send(this);
+		 /**
+		 * }
+		 */
+	};
+
+	cXMLHttpRequest.prototype.abort = function() {
+		// Add method sniffer
+		if (cXMLHttpRequest.onabort) {
+			cXMLHttpRequest.onabort.apply(this, arguments);
+		}
+
+		// BUGFIX: Gecko - unnecessary DONE when aborting
+		if (this.readyState > cXMLHttpRequest.UNSENT) {
+			this._aborted = true;
+		}
+
+		this._object.abort();
+
+		// BUGFIX: IE - memory leak
+		fCleanTransport(this);
+
+		this.readyState = cXMLHttpRequest.UNSENT;
+
+		delete this._data;
+
+		/* if (this._async) {
+	 	* 	fQueue_remove(this);
+	 	* }
+	 	*/
+	};
+
+	cXMLHttpRequest.prototype.getAllResponseHeaders = function() {
+		return this._object.getAllResponseHeaders();
+	};
+
+	cXMLHttpRequest.prototype.getResponseHeader = function(sName) {
+		return this._object.getResponseHeader(sName);
+	};
+
+	cXMLHttpRequest.prototype.setRequestHeader  = function(sName, sValue) {
+		// BUGFIX: IE - cache issue
+		if (!this._headers) {
+			this._headers = {};
+		}
+
+		this._headers[sName]  = sValue;
+
+		return this._object.setRequestHeader(sName, sValue);
+	};
+
+	// EventTarget interface implementation
+	cXMLHttpRequest.prototype.addEventListener  = function(sName, fHandler, bUseCapture) {
+		for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++) {
+			if (oListener[0] == sName && oListener[1] == fHandler && oListener[2] == bUseCapture) {
+				return;
+			}
+		}
+
+		// Add listener
+		this._listeners.push([sName, fHandler, bUseCapture]);
+	};
+
+	cXMLHttpRequest.prototype.removeEventListener = function(sName, fHandler, bUseCapture) {
+		for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++) {
+			if (oListener[0] == sName && oListener[1] == fHandler && oListener[2] == bUseCapture) {
+				break;
+			}
+		}
+
+		// Remove listener
+		if (oListener) {
+			this._listeners.splice(nIndex, 1);
+		}
+	};
+
+	cXMLHttpRequest.prototype.dispatchEvent = function(oEvent) {
+		var oEventPseudo  = {
+			'type':             oEvent.type,
+			'target':           this,
+			'currentTarget':    this,
+			'eventPhase':       2,
+			'bubbles':          oEvent.bubbles,
+			'cancelable':       oEvent.cancelable,
+			'timeStamp':        oEvent.timeStamp,
+			'stopPropagation':  function() {},  // There is no flow
+			'preventDefault':   function() {},  // There is no default action
+			'initEvent':        function() {}   // Original event object should be initialized
+		};
+
+		// Execute onreadystatechange
+		if (oEventPseudo.type == "readystatechange" && this.onreadystatechange) {
+			(this.onreadystatechange.handleEvent || this.onreadystatechange).apply(this, [oEventPseudo]);
+		}
+
+
+		// Execute listeners
+		for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++) {
+			if (oListener[0] == oEventPseudo.type && !oListener[2]) {
+				(oListener[1].handleEvent || oListener[1]).apply(this, [oEventPseudo]);
+			}
+		}
+
+	};
+
+	//
+	cXMLHttpRequest.prototype.toString  = function() {
+		return '[' + "object" + ' ' + "XMLHttpRequest" + ']';
+	};
+
+	cXMLHttpRequest.toString  = function() {
+		return '[' + "XMLHttpRequest" + ']';
+	};
+
+	/**
+	 * // Queue manager
+	 * var oQueuePending = {"CRITICAL":[],"HIGH":[],"NORMAL":[],"LOW":[],"LOWEST":[]},
+	 * aQueueRunning = [];
+	 * function fQueue_add(oRequest) {
+	 * 	oQueuePending[oRequest.priority in oQueuePending ? oRequest.priority : "NORMAL"].push(oRequest);
+	 * 	//
+	 * 	setTimeout(fQueue_process);
+	 * };
+	 *
+	 * function fQueue_remove(oRequest) {
+	 * 	for (var nIndex = 0, bFound = false; nIndex < aQueueRunning.length; nIndex++)
+	 * 	if (bFound) {
+	 * 		aQueueRunning[nIndex - 1] = aQueueRunning[nIndex];
+	 * 	} else {
+	 * 		if (aQueueRunning[nIndex] == oRequest) {
+	 * 			bFound  = true;
+	 * 		}
+	 * }
+	 *
+	 * 	if (bFound) {
+	 * 		aQueueRunning.length--;
+	 * 	}
+	 *
+	 *
+	 * 	//
+	 * 	setTimeout(fQueue_process);
+	 * };
+	 *
+	 * function fQueue_process() {
+	 * if (aQueueRunning.length < 6) {
+	 * for (var sPriority in oQueuePending) {
+	 * if (oQueuePending[sPriority].length) {
+	 * var oRequest  = oQueuePending[sPriority][0];
+	 * oQueuePending[sPriority]  = oQueuePending[sPriority].slice(1);
+	 * //
+	 * aQueueRunning.push(oRequest);
+	 * // Send request
+	 * fXMLHttpRequest_send(oRequest);
+	 * break;
+	 * }
+	 * }
+	 * }
+	 * };
+	 */
+
+	// Helper function
+	function fXMLHttpRequest_send(oRequest) {
+		oRequest._object.send(oRequest._data);
+
+		// BUGFIX: Gecko - missing readystatechange calls in synchronous requests
+		if (bGecko && !oRequest._async) {
+			oRequest.readyState = cXMLHttpRequest.OPENED;
+
+			// Synchronize state
+			fSynchronizeValues(oRequest);
+
+			// Simulate missing states
+			while (oRequest.readyState < cXMLHttpRequest.DONE) {
+				oRequest.readyState++;
+				fReadyStateChange(oRequest);
+				// Check if we are aborted
+				if (oRequest._aborted) {
+					return;
+				}
+			}
+		}
+	}
+
+	function fReadyStateChange(oRequest) {
+		// Sniffing code
+		if (cXMLHttpRequest.onreadystatechange){
+			cXMLHttpRequest.onreadystatechange.apply(oRequest);
+		}
+
+
+		// Fake event
+		oRequest.dispatchEvent({
+			'type':       "readystatechange",
+			'bubbles':    false,
+			'cancelable': false,
+			'timeStamp':  new Date + 0
+		});
+	}
+
+	function fGetDocument(oRequest) {
+		var oDocument = oRequest.responseXML;
+		var sResponse = oRequest.responseText;
+		// Try parsing responseText
+		if (bIE && sResponse && oDocument && !oDocument.documentElement && oRequest.getResponseHeader("Content-Type").match(/[^\/]+\/[^\+]+\+xml/)) {
+			oDocument = new window.ActiveXObject("Microsoft.XMLDOM");
+			oDocument.async       = false;
+			oDocument.validateOnParse = false;
+			oDocument.loadXML(sResponse);
+		}
+
+		// Check if there is no error in document
+		if (oDocument){
+			if ((bIE && oDocument.parseError !== 0) || !oDocument.documentElement || (oDocument.documentElement && oDocument.documentElement.tagName == "parsererror")) {
+				return null;
+			}
+		}
+		return oDocument;
+	}
+
+	function fSynchronizeValues(oRequest) {
+		try { oRequest.responseText = oRequest._object.responseText;  } catch (e) {}
+		try { oRequest.responseXML  = fGetDocument(oRequest._object); } catch (e) {}
+		try { oRequest.status       = oRequest._object.status;        } catch (e) {}
+		try { oRequest.statusText   = oRequest._object.statusText;    } catch (e) {}
+	}
+
+	function fCleanTransport(oRequest) {
+		// BUGFIX: IE - memory leak (on-page leak)
+		oRequest._object.onreadystatechange = new window.Function;
+	}
+
+	// Internet Explorer 5.0 (missing apply)
+	if (!window.Function.prototype.apply) {
+		window.Function.prototype.apply = function(oRequest, oArguments) {
+			if (!oArguments) {
+				oArguments  = [];
+			}
+			oRequest.__func = this;
+			oRequest.__func(oArguments[0], oArguments[1], oArguments[2], oArguments[3], oArguments[4]);
+			delete oRequest.__func;
+		};
+	}
+
+	// Register new object with window
+	window.XMLHttpRequest = cXMLHttpRequest;
+
+})();
+
+    // End browser file: XMLHttpRequest.js
+  }
+}(typeof window !== 'undefined' ? window : {});
+
+})()
+},{}],10:[function(require,module,exports){
+var _ = require('underscore');
+
+var HTMLElements = // from the w3schools site (http://www.w3schools.com/tags/default.asp)
+	('a abbr acronym address applet area article aside audio b base basefont bdi bdo big' +
+	' blockquote body br button canvas caption center cite code col colgroup command datalist' +
+	' dd del details dfn dialog dir div dl dt em embed fieldset figcaption figure font footer' +
+	' form frame frameset head header hgroup h1 h2 h3 h4 h5 h6 hr html i iframe img input ins' +
+	' kbd keygen label legend li link map mark menu meta meter nav noframes noscript object ol' +
+	' optgroup option output p param pre progress q rp rt ruby s samp script section select' +
+	' small source span strike strong style sub summary sup table tbody td textarea tfoot th' +
+	' thead time title tr track tt u ul var video wbr').split(' ')
+	// , tagsWithSrc = 'img iframe audio video'.split(' ')
+;
+
+function setArgs (e, args) {
+	_.each(args, function (argValue, argName) {
+		if (argName === 'css') {
+			_.each(args.css, function (styleValue, styleName) {
+				e.style[styleName] = styleValue;
+			});
+		}
+		else e.setAttribute(argName, argValue.toString());
+	});
+}
+
+function Huk () {
+	if (!(this instanceof Huk)) return new Huk();
+	this.children = [];
+	return this;
+}
+
+Huk.prototype.customElement = Huk.customElement = function (elementName, args, content) {
+	var e = document.createElement(elementName);
+
+	// Both defined
+	if (args && content) setArgs(e, args);
+
+	// Only one defined
+	if (!content) content = args;
+
+	if (_.isString(content)) e.appendChild(document.createTextNode(content));
+	else if (_.isElement(content)) e.appendChild(content);
+	else if (content instanceof Huk) content.children.forEach(function (c) { e.appendChild(c); });
+	// If only args defined
+	else if (_.isObject(args)) setArgs(e, args);
+
+	return e;
+};
+
+HTMLElements.forEach(function (elementName) {
+	Huk.prototype[elementName] = function (args, content) {
+		this.children.push(this.customElement(elementName, args, content));
+		return this;
+	};
+
+	Huk[elementName] = function (args, content) {
+		return this.customElement(elementName, args, content);
+	};
 });
 
-
-
-
-
+Huk.prototype.text = function (content) {
+	this.children.push(document.createTextNode(content));	
+	return this;
 };
-},{"browser-request":2,"huk-browserify":3,"underscore":4,"elapsed":5}],4:[function(require,module,exports){
+
+Huk.text = function (content) {
+	return document.createTextNode(content);
+};
+
+Huk.prototype.appendTo = function (parent) {
+	if (this.children.length === 0 || !_.isElement(parent)) return;
+	_.each(this.children, function (child) { parent.appendChild(child); });
+
+	this.children = [];
+	return this;
+};
+
+Huk.prototype.prependTo = function (parent) {
+	var first = parent.childNodes[0];
+	if (this.children.length === 0 || !_.isElement(parent)) return;
+	_.each(this.children, function (child) { parent.insertBefore(child, first); });
+
+	this.children = [];
+	return this;
+};
+
+module.exports = Huk;
+},{"underscore":14}],14:[function(require,module,exports){
 (function(){//     Underscore.js 1.4.4
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud Inc.
@@ -1681,1117 +2842,6 @@ window.addEventListener('resize', function () {
   });
 
 }).call(this);
-
-})()
-},{}],5:[function(require,module,exports){
-function Elapsed (from, to) {
-	this.from = from;
-	this.to = to || new Date();
-	if (!(this.from instanceof Date && this.to instanceof Date)) return;
-
-	this.set();
-}
-
-Elapsed.prototype.set = function() {
-	this.elapsedTime = this.to - this.from;
-	console.log(this.elapsedTime);
-
-	this.milliSeconds = this.elapsedTime;
-	var divider = 1000;
-	this.seconds = { num: Math.floor(this.elapsedTime / divider) };
-	divider *= 60;
-	this.minutes = { num: Math.floor(this.elapsedTime / divider) };
-	divider *= 60;
-	this.hours = { num: Math.floor(this.elapsedTime / divider) };
-	divider *= 24;
-	this.days = { num: Math.floor(this.elapsedTime / divider) };
-	divider *= 7;
-	this.weeks = { num: Math.floor(this.elapsedTime / divider) };
-	divider *= (30 / 7);
-	this.months = { num: Math.floor(this.elapsedTime / divider) };
-	divider = divider / (30 / 7) * 365;
-	this.years = { num: Math.floor(this.elapsedTime / divider) };
-
-	this.seconds.text = this.seconds.num + ' second' + (this.seconds.num < 2 ? '' : 's');
-	this.minutes.text = this.minutes.num + ' minute' + (this.minutes.num < 2 ? '' : 's');
-	this.hours.text = this.hours.num + ' hour' + (this.hours.num < 2 ? '' : 's');
-	this.days.text = this.days.num + ' day' + (this.days.num < 2 ? '' : 's');
-	this.weeks.text = this.weeks.num + ' week' + (this.weeks.num < 2 ? '' : 's');
-	this.months.text = this.months.num + ' month' + (this.months.num < 2 ? '' : 's');
-	this.years.text = this.years.num + ' year' + (this.years.num < 2 ? '' : 's');
-
-	if (this.years.num > 0) this.optimal =  this.years.text;
-	else if (this.months.num > 0) this.optimal =  this.months.text;
-	else if (this.weeks.num > 0) this.optimal =  this.weeks.text;
-	else if (this.days.num > 0) this.optimal =  this.days.text;
-	else if (this.hours.num > 0) this.optimal =  this.hours.text;
-	else if (this.minutes.num > 0) this.optimal =  this.minutes.text;
-	else if (this.seconds.num > 0) this.optimal =  this.seconds.text;
-
-	return this;
-};
-
-Elapsed.prototype.refresh = function(to) {
-	if (!to) this.to = new Date();
-	else this.to = to;
-	if (!this.to instanceof Date) return;
-
-	return this.set();
-};
-
-module.exports = Elapsed;
-},{}],2:[function(require,module,exports){
-(function(){// Browser Request
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-var xmlhttprequest = require('./xmlhttprequest')
-if(!xmlhttprequest || typeof xmlhttprequest !== 'object')
-  throw new Error('Could not find ./xmlhttprequest')
-
-var XHR = xmlhttprequest.XMLHttpRequest
-if(!XHR)
-  throw new Error('Bad xmlhttprequest.XMLHttpRequest')
-if(! ('_object' in (new XHR)))
-  throw new Error('This is not portable XMLHttpRequest')
-
-module.exports = request
-request.XMLHttpRequest = XHR
-request.log = getLogger()
-
-var DEFAULT_TIMEOUT = 3 * 60 * 1000 // 3 minutes
-
-//
-// request
-//
-
-function request(options, callback) {
-  // The entry-point to the API: prep the options object and pass the real work to run_xhr.
-  if(typeof callback !== 'function')
-    throw new Error('Bad callback given: ' + callback)
-
-  if(!options)
-    throw new Error('No options given')
-
-  var options_onResponse = options.onResponse; // Save this for later.
-
-  if(typeof options === 'string')
-    options = {'uri':options};
-  else
-    options = JSON.parse(JSON.stringify(options)); // Use a duplicate for mutating.
-
-  options.onResponse = options_onResponse // And put it back.
-
-  if(options.url) {
-    options.uri = options.url;
-    delete options.url;
-  }
-
-  if(!options.uri && options.uri !== "")
-    throw new Error("options.uri is a required argument");
-
-  if(typeof options.uri != "string")
-    throw new Error("options.uri must be a string");
-
-  var unsupported_options = ['proxy', '_redirectsFollowed', 'maxRedirects', 'followRedirect']
-  for (var i = 0; i < unsupported_options.length; i++)
-    if(options[ unsupported_options[i] ])
-      throw new Error("options." + unsupported_options[i] + " is not supported")
-
-  options.callback = callback
-  options.method = options.method || 'GET';
-  options.headers = options.headers || {};
-  options.body    = options.body || null
-  options.timeout = options.timeout || request.DEFAULT_TIMEOUT
-
-  if(options.headers.host)
-    throw new Error("Options.headers.host is not supported");
-
-  if(options.json) {
-    options.headers.accept = options.headers.accept || 'application/json'
-    if(options.method !== 'GET')
-      options.headers['content-type'] = 'application/json'
-
-    if(typeof options.json !== 'boolean')
-      options.body = JSON.stringify(options.json)
-    else if(typeof options.body !== 'string')
-      options.body = JSON.stringify(options.body)
-  }
-
-  // If onResponse is boolean true, call back immediately when the response is known,
-  // not when the full request is complete.
-  options.onResponse = options.onResponse || noop
-  if(options.onResponse === true) {
-    options.onResponse = callback
-    options.callback = noop
-  }
-
-  // XXX Browsers do not like this.
-  //if(options.body)
-  //  options.headers['content-length'] = options.body.length;
-
-  // HTTP basic authentication
-  if(!options.headers.authorization && options.auth)
-    options.headers.authorization = 'Basic ' + b64_enc(options.auth.username + ':' + options.auth.password);
-
-  return run_xhr(options)
-}
-
-var req_seq = 0
-function run_xhr(options) {
-  var xhr = new XHR
-    , timed_out = false
-    , is_cors = is_crossDomain(options.uri)
-    , supports_cors = ('withCredentials' in xhr._object)
-
-  req_seq += 1
-  xhr.seq_id = req_seq
-  xhr.id = req_seq + ': ' + options.method + ' ' + options.uri
-  xhr._id = xhr.id // I know I will type "_id" from habit all the time.
-
-  if(is_cors && !supports_cors) {
-    var cors_err = new Error('Browser does not support cross-origin request: ' + options.uri)
-    cors_err.cors = 'unsupported'
-    return options.callback(cors_err, xhr)
-  }
-
-  xhr.timeoutTimer = setTimeout(too_late, options.timeout)
-  function too_late() {
-    timed_out = true
-    var er = new Error('ETIMEDOUT')
-    er.code = 'ETIMEDOUT'
-    er.duration = options.timeout
-
-    request.log.error('Timeout', { 'id':xhr._id, 'milliseconds':options.timeout })
-    return options.callback(er, xhr)
-  }
-
-  // Some states can be skipped over, so remember what is still incomplete.
-  var did = {'response':false, 'loading':false, 'end':false}
-
-  xhr.onreadystatechange = on_state_change
-  xhr.open(options.method, options.uri, true) // asynchronous
-  if(is_cors)
-    xhr._object.withCredentials = !! options.withCredentials
-  xhr.send(options.body)
-  return xhr
-
-  function on_state_change(event) {
-    if(timed_out)
-      return request.log.debug('Ignoring timed out state change', {'state':xhr.readyState, 'id':xhr.id})
-
-    request.log.debug('State change', {'state':xhr.readyState, 'id':xhr.id, 'timed_out':timed_out})
-
-    if(xhr.readyState === XHR.OPENED) {
-      request.log.debug('Request started', {'id':xhr.id})
-      for (var key in options.headers)
-        xhr.setRequestHeader(key, options.headers[key])
-    }
-
-    else if(xhr.readyState === XHR.HEADERS_RECEIVED)
-      on_response()
-
-    else if(xhr.readyState === XHR.LOADING) {
-      on_response()
-      on_loading()
-    }
-
-    else if(xhr.readyState === XHR.DONE) {
-      on_response()
-      on_loading()
-      on_end()
-    }
-  }
-
-  function on_response() {
-    if(did.response)
-      return
-
-    did.response = true
-    request.log.debug('Got response', {'id':xhr.id, 'status':xhr.status})
-    clearTimeout(xhr.timeoutTimer)
-    xhr.statusCode = xhr.status // Node request compatibility
-
-    // Detect failed CORS requests.
-    if(is_cors && xhr.statusCode == 0) {
-      var cors_err = new Error('CORS request rejected: ' + options.uri)
-      cors_err.cors = 'rejected'
-
-      // Do not process this request further.
-      did.loading = true
-      did.end = true
-
-      return options.callback(cors_err, xhr)
-    }
-
-    options.onResponse(null, xhr)
-  }
-
-  function on_loading() {
-    if(did.loading)
-      return
-
-    did.loading = true
-    request.log.debug('Response body loading', {'id':xhr.id})
-    // TODO: Maybe simulate "data" events by watching xhr.responseText
-  }
-
-  function on_end() {
-    if(did.end)
-      return
-
-    did.end = true
-    request.log.debug('Request done', {'id':xhr.id})
-
-    xhr.body = xhr.responseText
-    if(options.json) {
-      try        { xhr.body = JSON.parse(xhr.responseText) }
-      catch (er) { return options.callback(er, xhr)        }
-    }
-
-    options.callback(null, xhr, xhr.body)
-  }
-
-} // request
-
-request.withCredentials = false;
-request.DEFAULT_TIMEOUT = DEFAULT_TIMEOUT;
-
-//
-// HTTP method shortcuts
-//
-
-var shortcuts = [ 'get', 'put', 'post', 'head' ];
-shortcuts.forEach(function(shortcut) {
-  var method = shortcut.toUpperCase();
-  var func   = shortcut.toLowerCase();
-
-  request[func] = function(opts) {
-    if(typeof opts === 'string')
-      opts = {'method':method, 'uri':opts};
-    else {
-      opts = JSON.parse(JSON.stringify(opts));
-      opts.method = method;
-    }
-
-    var args = [opts].concat(Array.prototype.slice.apply(arguments, [1]));
-    return request.apply(this, args);
-  }
-})
-
-//
-// CouchDB shortcut
-//
-
-request.couch = function(options, callback) {
-  if(typeof options === 'string')
-    options = {'uri':options}
-
-  // Just use the request API to do JSON.
-  options.json = true
-  if(options.body)
-    options.json = options.body
-  delete options.body
-
-  callback = callback || noop
-
-  var xhr = request(options, couch_handler)
-  return xhr
-
-  function couch_handler(er, resp, body) {
-    if(er)
-      return callback(er, resp, body)
-
-    if((resp.statusCode < 200 || resp.statusCode > 299) && body.error) {
-      // The body is a Couch JSON object indicating the error.
-      er = new Error('CouchDB error: ' + (body.error.reason || body.error.error))
-      for (var key in body)
-        er[key] = body[key]
-      return callback(er, resp, body);
-    }
-
-    return callback(er, resp, body);
-  }
-}
-
-//
-// Utility
-//
-
-function noop() {}
-
-function getLogger() {
-  var logger = {}
-    , levels = ['trace', 'debug', 'info', 'warn', 'error']
-    , level, i
-
-  for(i = 0; i < levels.length; i++) {
-    level = levels[i]
-
-    logger[level] = noop
-    if(typeof console !== 'undefined' && console && console[level])
-      logger[level] = formatted(console, level)
-  }
-
-  return logger
-}
-
-function formatted(obj, method) {
-  return formatted_logger
-
-  function formatted_logger(str, context) {
-    if(typeof context === 'object')
-      str += ' ' + JSON.stringify(context)
-
-    return obj[method].call(obj, str)
-  }
-}
-
-// Return whether a URL is a cross-domain request.
-function is_crossDomain(url) {
-  var rurl = /^([\w\+\.\-]+:)(?:\/\/([^\/?#:]*)(?::(\d+))?)?/
-
-  // jQuery #8138, IE may throw an exception when accessing
-  // a field from window.location if document.domain has been set
-  var ajaxLocation
-  try { ajaxLocation = location.href }
-  catch (e) {
-    // Use the href attribute of an A element since IE will modify it given document.location
-    ajaxLocation = document.createElement( "a" );
-    ajaxLocation.href = "";
-    ajaxLocation = ajaxLocation.href;
-  }
-
-  var ajaxLocParts = rurl.exec(ajaxLocation.toLowerCase()) || []
-    , parts = rurl.exec(url.toLowerCase() )
-
-  var result = !!(
-    parts &&
-    (  parts[1] != ajaxLocParts[1]
-    || parts[2] != ajaxLocParts[2]
-    || (parts[3] || (parts[1] === "http:" ? 80 : 443)) != (ajaxLocParts[3] || (ajaxLocParts[1] === "http:" ? 80 : 443))
-    )
-  )
-
-  //console.debug('is_crossDomain('+url+') -> ' + result)
-  return result
-}
-
-// MIT License from http://phpjs.org/functions/base64_encode:358
-function b64_enc (data) {
-    // Encodes string using MIME base64 algorithm
-    var b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
-    var o1, o2, o3, h1, h2, h3, h4, bits, i = 0, ac = 0, enc="", tmp_arr = [];
-
-    if (!data) {
-        return data;
-    }
-
-    // assume utf8 data
-    // data = this.utf8_encode(data+'');
-
-    do { // pack three octets into four hexets
-        o1 = data.charCodeAt(i++);
-        o2 = data.charCodeAt(i++);
-        o3 = data.charCodeAt(i++);
-
-        bits = o1<<16 | o2<<8 | o3;
-
-        h1 = bits>>18 & 0x3f;
-        h2 = bits>>12 & 0x3f;
-        h3 = bits>>6 & 0x3f;
-        h4 = bits & 0x3f;
-
-        // use hexets to index into b64, and append result to encoded string
-        tmp_arr[ac++] = b64.charAt(h1) + b64.charAt(h2) + b64.charAt(h3) + b64.charAt(h4);
-    } while (i < data.length);
-
-    enc = tmp_arr.join('');
-
-    switch (data.length % 3) {
-        case 1:
-            enc = enc.slice(0, -2) + '==';
-        break;
-        case 2:
-            enc = enc.slice(0, -1) + '=';
-        break;
-    }
-
-    return enc;
-}
-
-})()
-},{"./xmlhttprequest":6}],3:[function(require,module,exports){
-var _ = require('underscore');
-
-var HTMLElements = // from the w3schools site (http://www.w3schools.com/tags/default.asp)
-	('a abbr acronym address applet area article aside audio b base basefont bdi bdo big' +
-	' blockquote body br button canvas caption center cite code col colgroup command datalist' +
-	' dd del details dfn dialog dir div dl dt em embed fieldset figcaption figure font footer' +
-	' form frame frameset head header hgroup h1 h2 h3 h4 h5 h6 hr html i iframe img input ins' +
-	' kbd keygen label legend li link map mark menu meta meter nav noframes noscript object ol' +
-	' optgroup option output p param pre progress q rp rt ruby s samp script section select' +
-	' small source span strike strong style sub summary sup table tbody td textarea tfoot th' +
-	' thead time title tr track tt u ul var video wbr').split(' ')
-	// , tagsWithSrc = 'img iframe audio video'.split(' ')
-;
-
-function setArgs (e, args) {
-	_.each(args, function (argValue, argName) {
-		if (argName === 'css') {
-			_.each(args.css, function (styleValue, styleName) {
-				e.style[styleName] = styleValue;
-			});
-		}
-		else e.setAttribute(argName, argValue.toString());
-	});
-}
-
-function Huk () {
-	if (!(this instanceof Huk)) return new Huk();
-	this.children = [];
-	return this;
-}
-
-Huk.prototype.customElement = Huk.customElement = function (elementName, args, content) {
-	var e = document.createElement(elementName);
-
-	// Both defined
-	if (args && content) setArgs(e, args);
-
-	// Only one defined
-	if (!content) content = args;
-
-	if (_.isString(content)) e.appendChild(document.createTextNode(content));
-	else if (_.isElement(content)) e.appendChild(content);
-	else if (content instanceof Huk) content.children.forEach(function (c) { e.appendChild(c); });
-	// If only args defined
-	else if (_.isObject(args)) setArgs(e, args);
-
-	return e;
-};
-
-HTMLElements.forEach(function (elementName) {
-	Huk.prototype[elementName] = function (args, content) {
-		this.children.push(this.customElement(elementName, args, content));
-		return this;
-	};
-
-	Huk[elementName] = function (args, content) {
-		return this.customElement(elementName, args, content);
-	};
-});
-
-Huk.prototype.text = function (content) {
-	this.children.push(document.createTextNode(content));	
-	return this;
-};
-
-Huk.text = function (content) {
-	return document.createTextNode(content);
-};
-
-Huk.prototype.appendTo = function (parent) {
-	if (this.children.length === 0 || !_.isElement(parent)) return;
-	_.each(this.children, function (child) { parent.appendChild(child); });
-
-	this.children = [];
-	return this;
-};
-
-Huk.prototype.prependTo = function (parent) {
-	var first = parent.childNodes[0];
-	if (this.children.length === 0 || !_.isElement(parent)) return;
-	_.each(this.children, function (child) { parent.insertBefore(child, first); });
-
-	this.children = [];
-	return this;
-};
-
-module.exports = Huk;
-},{"underscore":4}],6:[function(require,module,exports){
-(function(){
-
-!function(window) {
-  if(typeof exports === 'undefined')
-    throw new Error('Cannot find global "exports" object. Is this really CommonJS?')
-  if(typeof module === 'undefined')
-    throw new Error('Cannot find global "module" object. Is this really CommonJS?')
-  if(!module.exports)
-    throw new Error('Cannot find global "module.exports" object. Is this really CommonJS?')
-
-  // Define globals to simulate a browser environment.
-  window = window || {}
-
-  var document = window.document || {}
-  if(!window.document)
-    window.document = document
-
-  var navigator = window.navigator || {}
-  if(!window.navigator)
-    window.navigator = navigator
-
-  if(!navigator.userAgent)
-    navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_2) AppleWebKit/534.51.22 (KHTML, like Gecko) Version/5.1.1 Safari/534.51.22';
-
-  // Remember the old values in window. If the inner code changes anything, export that as a module and restore the old window value.
-  var win = {}
-    , key
-
-  for (key in window)
-    if(window.hasOwnProperty(key))
-      win[key] = window[key]
-
-  run_code()
-
-  for (key in window)
-    if(window.hasOwnProperty(key))
-      if(window[key] !== win[key]) {
-        exports[key] = window[key]
-        window[key] = win[key]
-      }
-
-  function run_code() {
-    // Begin browser file: XMLHttpRequest.js
-/**
-* XMLHttpRequest.js Copyright (C) 2011 Sergey Ilinsky (http://www.ilinsky.com)
-*
-* This work is free software; you can redistribute it and/or modify
-* it under the terms of the GNU Lesser General Public License as published by
-* the Free Software Foundation; either version 2.1 of the License, or
-* (at your option) any later version.
-*
-* This work is distributed in the hope that it will be useful,
-* but without any warranty; without even the implied warranty of
-* merchantability or fitness for a particular purpose. See the
-* GNU Lesser General Public License for more details.
-*
-* You should have received a copy of the GNU Lesser General Public License
-* along with this library; if not, write to the Free Software Foundation, Inc.,
-* 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-*/
-
-(function () {
-
-	// Save reference to earlier defined object implementation (if any)
-	var oXMLHttpRequest = window.XMLHttpRequest;
-
-	// Define on browser type
-	var bGecko  = !!window.controllers;
-	var bIE     = !!window.document.namespaces;
-	var bIE7    = bIE && window.navigator.userAgent.match(/MSIE 7.0/);
-
-	// Enables "XMLHttpRequest()" call next to "new XMLHttpRequest()"
-	function fXMLHttpRequest() {
-		this._object  = oXMLHttpRequest && !bIE7 ? new oXMLHttpRequest : new window.ActiveXObject("Microsoft.XMLHTTP");
-		this._listeners = [];
-	}
-
-	// Constructor
-	function cXMLHttpRequest() {
-		return new fXMLHttpRequest;
-	}
-	cXMLHttpRequest.prototype = fXMLHttpRequest.prototype;
-
-	// BUGFIX: Firefox with Firebug installed would break pages if not executed
-	if (bGecko && oXMLHttpRequest.wrapped) {
-		cXMLHttpRequest.wrapped = oXMLHttpRequest.wrapped;
-	}
-
-	// Constants
-	cXMLHttpRequest.UNSENT            = 0;
-	cXMLHttpRequest.OPENED            = 1;
-	cXMLHttpRequest.HEADERS_RECEIVED  = 2;
-	cXMLHttpRequest.LOADING           = 3;
-	cXMLHttpRequest.DONE              = 4;
-
-	// Interface level constants
-	cXMLHttpRequest.prototype.UNSENT            = cXMLHttpRequest.UNSENT;
-	cXMLHttpRequest.prototype.OPENED            = cXMLHttpRequest.OPENED;
-	cXMLHttpRequest.prototype.HEADERS_RECEIVED  = cXMLHttpRequest.HEADERS_RECEIVED;
-	cXMLHttpRequest.prototype.LOADING           = cXMLHttpRequest.LOADING;
-	cXMLHttpRequest.prototype.DONE              = cXMLHttpRequest.DONE;
-
-	// Public Properties
-	cXMLHttpRequest.prototype.readyState    = cXMLHttpRequest.UNSENT;
-	cXMLHttpRequest.prototype.responseText  = '';
-	cXMLHttpRequest.prototype.responseXML   = null;
-	cXMLHttpRequest.prototype.status        = 0;
-	cXMLHttpRequest.prototype.statusText    = '';
-
-	// Priority proposal
-	cXMLHttpRequest.prototype.priority    = "NORMAL";
-
-	// Instance-level Events Handlers
-	cXMLHttpRequest.prototype.onreadystatechange  = null;
-
-	// Class-level Events Handlers
-	cXMLHttpRequest.onreadystatechange  = null;
-	cXMLHttpRequest.onopen              = null;
-	cXMLHttpRequest.onsend              = null;
-	cXMLHttpRequest.onabort             = null;
-
-	// Public Methods
-	cXMLHttpRequest.prototype.open  = function(sMethod, sUrl, bAsync, sUser, sPassword) {
-		// http://www.w3.org/TR/XMLHttpRequest/#the-open-method
-		var sLowerCaseMethod = sMethod.toLowerCase();
-		if (sLowerCaseMethod == "connect" || sLowerCaseMethod == "trace" || sLowerCaseMethod == "track") {
-			// Using a generic error and an int - not too sure all browsers support correctly
-			// http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#securityerror, so, this is safer
-			// XXX should do better than that, but this is OT to XHR.
-			throw new Error(18);
-		}
-
-		// Delete headers, required when object is reused
-		delete this._headers;
-
-		// When bAsync parameter value is omitted, use true as default
-		if (arguments.length < 3) {
-			bAsync  = true;
-		}
-
-		// Save async parameter for fixing Gecko bug with missing readystatechange in synchronous requests
-		this._async   = bAsync;
-
-		// Set the onreadystatechange handler
-		var oRequest  = this;
-		var nState    = this.readyState;
-		var fOnUnload = null;
-
-		// BUGFIX: IE - memory leak on page unload (inter-page leak)
-		if (bIE && bAsync) {
-			fOnUnload = function() {
-				if (nState != cXMLHttpRequest.DONE) {
-					fCleanTransport(oRequest);
-					// Safe to abort here since onreadystatechange handler removed
-					oRequest.abort();
-				}
-			};
-			window.attachEvent("onunload", fOnUnload);
-		}
-
-		// Add method sniffer
-		if (cXMLHttpRequest.onopen) {
-			cXMLHttpRequest.onopen.apply(this, arguments);
-		}
-
-		if (arguments.length > 4) {
-			this._object.open(sMethod, sUrl, bAsync, sUser, sPassword);
-		} else if (arguments.length > 3) {
-			this._object.open(sMethod, sUrl, bAsync, sUser);
-		} else {
-			this._object.open(sMethod, sUrl, bAsync);
-		}
-
-		this.readyState = cXMLHttpRequest.OPENED;
-		fReadyStateChange(this);
-
-		this._object.onreadystatechange = function() {
-			if (bGecko && !bAsync) {
-				return;
-			}
-
-			// Synchronize state
-			oRequest.readyState   = oRequest._object.readyState;
-			fSynchronizeValues(oRequest);
-
-			// BUGFIX: Firefox fires unnecessary DONE when aborting
-			if (oRequest._aborted) {
-				// Reset readyState to UNSENT
-				oRequest.readyState = cXMLHttpRequest.UNSENT;
-
-				// Return now
-				return;
-			}
-
-			if (oRequest.readyState == cXMLHttpRequest.DONE) {
-				// Free up queue
-				delete oRequest._data;
-
-				// Uncomment these lines for bAsync
-				/**
-				 * if (bAsync) {
-				 * 	fQueue_remove(oRequest);
-				 * }
-				 */
-
-				fCleanTransport(oRequest);
-
-				// Uncomment this block if you need a fix for IE cache
-				/**
-				 * // BUGFIX: IE - cache issue
-				 * if (!oRequest._object.getResponseHeader("Date")) {
-				 * 	// Save object to cache
-				 * 	oRequest._cached  = oRequest._object;
-				 *
-				 * 	// Instantiate a new transport object
-				 * 	cXMLHttpRequest.call(oRequest);
-				 *
-				 * 	// Re-send request
-				 * 	if (sUser) {
-				 * 		if (sPassword) {
-				 * 			oRequest._object.open(sMethod, sUrl, bAsync, sUser, sPassword);
-				 * 		} else {
-				 * 			oRequest._object.open(sMethod, sUrl, bAsync);
-				 * 		}
-				 *
-				 * 		oRequest._object.setRequestHeader("If-Modified-Since", oRequest._cached.getResponseHeader("Last-Modified") || new window.Date(0));
-				 * 		// Copy headers set
-				 * 		if (oRequest._headers) {
-				 * 			for (var sHeader in oRequest._headers) {
-				 * 				// Some frameworks prototype objects with functions
-				 * 				if (typeof oRequest._headers[sHeader] == "string") {
-				 * 					oRequest._object.setRequestHeader(sHeader, oRequest._headers[sHeader]);
-				 * 				}
-				 * 			}
-				 * 		}
-				 * 		oRequest._object.onreadystatechange = function() {
-				 * 			// Synchronize state
-				 * 			oRequest.readyState   = oRequest._object.readyState;
-				 *
-				 * 			if (oRequest._aborted) {
-				 * 				//
-				 * 				oRequest.readyState = cXMLHttpRequest.UNSENT;
-				 *
-				 * 				// Return
-				 * 				return;
-				 * 			}
-				 *
-				 * 			if (oRequest.readyState == cXMLHttpRequest.DONE) {
-				 * 				// Clean Object
-				 * 				fCleanTransport(oRequest);
-				 *
-				 * 				// get cached request
-				 * 				if (oRequest.status == 304) {
-				 * 					oRequest._object  = oRequest._cached;
-				 * 				}
-				 *
-				 * 				//
-				 * 				delete oRequest._cached;
-				 *
-				 * 				//
-				 * 				fSynchronizeValues(oRequest);
-				 *
-				 * 				//
-				 * 				fReadyStateChange(oRequest);
-				 *
-				 * 				// BUGFIX: IE - memory leak in interrupted
-				 * 				if (bIE && bAsync) {
-				 * 					window.detachEvent("onunload", fOnUnload);
-				 * 				}
-				 *
-				 * 			}
-				 * 		};
-				 * 		oRequest._object.send(null);
-				 *
-				 * 		// Return now - wait until re-sent request is finished
-				 * 		return;
-				 * 	};
-				 */
-
-				// BUGFIX: IE - memory leak in interrupted
-				if (bIE && bAsync) {
-					window.detachEvent("onunload", fOnUnload);
-				}
-
-				// BUGFIX: Some browsers (Internet Explorer, Gecko) fire OPEN readystate twice
-				if (nState != oRequest.readyState) {
-					fReadyStateChange(oRequest);
-				}
-
-				nState  = oRequest.readyState;
-			}
-		};
-	};
-
-	cXMLHttpRequest.prototype.send = function(vData) {
-		// Add method sniffer
-		if (cXMLHttpRequest.onsend) {
-			cXMLHttpRequest.onsend.apply(this, arguments);
-		}
-
-		if (!arguments.length) {
-			vData = null;
-		}
-
-		// BUGFIX: Safari - fails sending documents created/modified dynamically, so an explicit serialization required
-		// BUGFIX: IE - rewrites any custom mime-type to "text/xml" in case an XMLNode is sent
-		// BUGFIX: Gecko - fails sending Element (this is up to the implementation either to standard)
-		if (vData && vData.nodeType) {
-			vData = window.XMLSerializer ? new window.XMLSerializer().serializeToString(vData) : vData.xml;
-			if (!this._headers["Content-Type"]) {
-				this._object.setRequestHeader("Content-Type", "application/xml");
-			}
-		}
-
-		this._data = vData;
-
-		/**
-		 * // Add to queue
-		 * if (this._async) {
-		 * 	fQueue_add(this);
-		 * } else { */
-		fXMLHttpRequest_send(this);
-		 /**
-		 * }
-		 */
-	};
-
-	cXMLHttpRequest.prototype.abort = function() {
-		// Add method sniffer
-		if (cXMLHttpRequest.onabort) {
-			cXMLHttpRequest.onabort.apply(this, arguments);
-		}
-
-		// BUGFIX: Gecko - unnecessary DONE when aborting
-		if (this.readyState > cXMLHttpRequest.UNSENT) {
-			this._aborted = true;
-		}
-
-		this._object.abort();
-
-		// BUGFIX: IE - memory leak
-		fCleanTransport(this);
-
-		this.readyState = cXMLHttpRequest.UNSENT;
-
-		delete this._data;
-
-		/* if (this._async) {
-	 	* 	fQueue_remove(this);
-	 	* }
-	 	*/
-	};
-
-	cXMLHttpRequest.prototype.getAllResponseHeaders = function() {
-		return this._object.getAllResponseHeaders();
-	};
-
-	cXMLHttpRequest.prototype.getResponseHeader = function(sName) {
-		return this._object.getResponseHeader(sName);
-	};
-
-	cXMLHttpRequest.prototype.setRequestHeader  = function(sName, sValue) {
-		// BUGFIX: IE - cache issue
-		if (!this._headers) {
-			this._headers = {};
-		}
-
-		this._headers[sName]  = sValue;
-
-		return this._object.setRequestHeader(sName, sValue);
-	};
-
-	// EventTarget interface implementation
-	cXMLHttpRequest.prototype.addEventListener  = function(sName, fHandler, bUseCapture) {
-		for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++) {
-			if (oListener[0] == sName && oListener[1] == fHandler && oListener[2] == bUseCapture) {
-				return;
-			}
-		}
-
-		// Add listener
-		this._listeners.push([sName, fHandler, bUseCapture]);
-	};
-
-	cXMLHttpRequest.prototype.removeEventListener = function(sName, fHandler, bUseCapture) {
-		for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++) {
-			if (oListener[0] == sName && oListener[1] == fHandler && oListener[2] == bUseCapture) {
-				break;
-			}
-		}
-
-		// Remove listener
-		if (oListener) {
-			this._listeners.splice(nIndex, 1);
-		}
-	};
-
-	cXMLHttpRequest.prototype.dispatchEvent = function(oEvent) {
-		var oEventPseudo  = {
-			'type':             oEvent.type,
-			'target':           this,
-			'currentTarget':    this,
-			'eventPhase':       2,
-			'bubbles':          oEvent.bubbles,
-			'cancelable':       oEvent.cancelable,
-			'timeStamp':        oEvent.timeStamp,
-			'stopPropagation':  function() {},  // There is no flow
-			'preventDefault':   function() {},  // There is no default action
-			'initEvent':        function() {}   // Original event object should be initialized
-		};
-
-		// Execute onreadystatechange
-		if (oEventPseudo.type == "readystatechange" && this.onreadystatechange) {
-			(this.onreadystatechange.handleEvent || this.onreadystatechange).apply(this, [oEventPseudo]);
-		}
-
-
-		// Execute listeners
-		for (var nIndex = 0, oListener; oListener = this._listeners[nIndex]; nIndex++) {
-			if (oListener[0] == oEventPseudo.type && !oListener[2]) {
-				(oListener[1].handleEvent || oListener[1]).apply(this, [oEventPseudo]);
-			}
-		}
-
-	};
-
-	//
-	cXMLHttpRequest.prototype.toString  = function() {
-		return '[' + "object" + ' ' + "XMLHttpRequest" + ']';
-	};
-
-	cXMLHttpRequest.toString  = function() {
-		return '[' + "XMLHttpRequest" + ']';
-	};
-
-	/**
-	 * // Queue manager
-	 * var oQueuePending = {"CRITICAL":[],"HIGH":[],"NORMAL":[],"LOW":[],"LOWEST":[]},
-	 * aQueueRunning = [];
-	 * function fQueue_add(oRequest) {
-	 * 	oQueuePending[oRequest.priority in oQueuePending ? oRequest.priority : "NORMAL"].push(oRequest);
-	 * 	//
-	 * 	setTimeout(fQueue_process);
-	 * };
-	 *
-	 * function fQueue_remove(oRequest) {
-	 * 	for (var nIndex = 0, bFound = false; nIndex < aQueueRunning.length; nIndex++)
-	 * 	if (bFound) {
-	 * 		aQueueRunning[nIndex - 1] = aQueueRunning[nIndex];
-	 * 	} else {
-	 * 		if (aQueueRunning[nIndex] == oRequest) {
-	 * 			bFound  = true;
-	 * 		}
-	 * }
-	 *
-	 * 	if (bFound) {
-	 * 		aQueueRunning.length--;
-	 * 	}
-	 *
-	 *
-	 * 	//
-	 * 	setTimeout(fQueue_process);
-	 * };
-	 *
-	 * function fQueue_process() {
-	 * if (aQueueRunning.length < 6) {
-	 * for (var sPriority in oQueuePending) {
-	 * if (oQueuePending[sPriority].length) {
-	 * var oRequest  = oQueuePending[sPriority][0];
-	 * oQueuePending[sPriority]  = oQueuePending[sPriority].slice(1);
-	 * //
-	 * aQueueRunning.push(oRequest);
-	 * // Send request
-	 * fXMLHttpRequest_send(oRequest);
-	 * break;
-	 * }
-	 * }
-	 * }
-	 * };
-	 */
-
-	// Helper function
-	function fXMLHttpRequest_send(oRequest) {
-		oRequest._object.send(oRequest._data);
-
-		// BUGFIX: Gecko - missing readystatechange calls in synchronous requests
-		if (bGecko && !oRequest._async) {
-			oRequest.readyState = cXMLHttpRequest.OPENED;
-
-			// Synchronize state
-			fSynchronizeValues(oRequest);
-
-			// Simulate missing states
-			while (oRequest.readyState < cXMLHttpRequest.DONE) {
-				oRequest.readyState++;
-				fReadyStateChange(oRequest);
-				// Check if we are aborted
-				if (oRequest._aborted) {
-					return;
-				}
-			}
-		}
-	}
-
-	function fReadyStateChange(oRequest) {
-		// Sniffing code
-		if (cXMLHttpRequest.onreadystatechange){
-			cXMLHttpRequest.onreadystatechange.apply(oRequest);
-		}
-
-
-		// Fake event
-		oRequest.dispatchEvent({
-			'type':       "readystatechange",
-			'bubbles':    false,
-			'cancelable': false,
-			'timeStamp':  new Date + 0
-		});
-	}
-
-	function fGetDocument(oRequest) {
-		var oDocument = oRequest.responseXML;
-		var sResponse = oRequest.responseText;
-		// Try parsing responseText
-		if (bIE && sResponse && oDocument && !oDocument.documentElement && oRequest.getResponseHeader("Content-Type").match(/[^\/]+\/[^\+]+\+xml/)) {
-			oDocument = new window.ActiveXObject("Microsoft.XMLDOM");
-			oDocument.async       = false;
-			oDocument.validateOnParse = false;
-			oDocument.loadXML(sResponse);
-		}
-
-		// Check if there is no error in document
-		if (oDocument){
-			if ((bIE && oDocument.parseError !== 0) || !oDocument.documentElement || (oDocument.documentElement && oDocument.documentElement.tagName == "parsererror")) {
-				return null;
-			}
-		}
-		return oDocument;
-	}
-
-	function fSynchronizeValues(oRequest) {
-		try { oRequest.responseText = oRequest._object.responseText;  } catch (e) {}
-		try { oRequest.responseXML  = fGetDocument(oRequest._object); } catch (e) {}
-		try { oRequest.status       = oRequest._object.status;        } catch (e) {}
-		try { oRequest.statusText   = oRequest._object.statusText;    } catch (e) {}
-	}
-
-	function fCleanTransport(oRequest) {
-		// BUGFIX: IE - memory leak (on-page leak)
-		oRequest._object.onreadystatechange = new window.Function;
-	}
-
-	// Internet Explorer 5.0 (missing apply)
-	if (!window.Function.prototype.apply) {
-		window.Function.prototype.apply = function(oRequest, oArguments) {
-			if (!oArguments) {
-				oArguments  = [];
-			}
-			oRequest.__func = this;
-			oRequest.__func(oArguments[0], oArguments[1], oArguments[2], oArguments[3], oArguments[4]);
-			delete oRequest.__func;
-		};
-	}
-
-	// Register new object with window
-	window.XMLHttpRequest = cXMLHttpRequest;
-
-})();
-
-    // End browser file: XMLHttpRequest.js
-  }
-}(typeof window !== 'undefined' ? window : {});
 
 })()
 },{}]},{},[1])
