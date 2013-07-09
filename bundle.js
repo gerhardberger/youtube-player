@@ -2,6 +2,7 @@
 var request = require('browser-request');
 var $ = require('huk-browserify');
 var _ = require('underscore');
+var Elapsed = require('elapsed');
 
 var DEFAULT_URL = 'https://gdata.youtube.com/feeds/api/users/skagames/newsubscriptionvideos?v=2.1&alt=json&start-index=1&max-results=40&orderby=published'; //'https://gdata.youtube.com/feeds/api/standardfeeds/recently_featured?alt=json'
 
@@ -31,7 +32,8 @@ Video.prototype.setupView = function (data) {
 			.div({ 'class': 'title', title: self.data.title.$t }, self.data.title.$t.length > 40 ? self.data.title.$t.slice(0, 38) + '...' : self.data.title.$t)
 			.div({ 'class': 'duration' }, self.data.media$group.yt$duration.seconds)
 			.div({ 'class': 'views' }, self.data.yt$statistics.viewCount)
-			.div({ 'class': 'date' }, (new Date(self.data.media$group.yt$uploaded.$t)).toLocaleDateString())
+			.div({ 'class': 'date', title: (new Date(self.data.media$group.yt$uploaded.$t)).toLocaleString() },
+				(new Elapsed(new Date(self.data.media$group.yt$uploaded.$t))).optimal + ' ago')
 			.div({ 'class': 'uploader' }, self.data.author[0].name.$t)
 			.button({ 'class': 'plus' }, '+'));
 	if (!self.player) return self.view;
@@ -179,11 +181,11 @@ Player.prototype.startPlaying = function() {
 	$()
 		.div({ 'class': 'title' }, self.data.title.$t)
 		.div({ 'class': 'views' }, self.data.yt$statistics.viewCount)
-		.div({ 'class': 'date' }, (new Date(self.data.media$group.yt$uploaded.$t)).toLocaleDateString())
+		.div({ 'class': 'date', title: (new Date(self.data.media$group.yt$uploaded.$t)).toLocaleString() },
+			(new Elapsed(new Date(self.data.media$group.yt$uploaded.$t))).optimal + ' ago')
 		.img({ src: 'https://i.ytimg.com/i/' + self.data.author[0].yt$userId.$t + '/1.jpg' })
 		.div({ 'class': 'uploader' }, self.data.author[0].name.$t)
 	.appendTo(infos);
-
 
 	self.control = new YT.Player('player', {
 		videoId: self.data.media$group.yt$videoid.$t
@@ -452,7 +454,7 @@ window.addEventListener('resize', function () {
 
 
 };
-},{"browser-request":2,"huk-browserify":3,"underscore":4}],4:[function(require,module,exports){
+},{"browser-request":2,"huk-browserify":3,"underscore":4,"elapsed":5}],4:[function(require,module,exports){
 (function(){//     Underscore.js 1.4.4
 //     http://underscorejs.org
 //     (c) 2009-2013 Jeremy Ashkenas, DocumentCloud Inc.
@@ -1681,6 +1683,63 @@ window.addEventListener('resize', function () {
 }).call(this);
 
 })()
+},{}],5:[function(require,module,exports){
+function Elapsed (from, to) {
+	this.from = from;
+	this.to = to || new Date();
+	if (!(this.from instanceof Date && this.to instanceof Date)) return;
+
+	this.set();
+}
+
+Elapsed.prototype.set = function() {
+	this.elapsedTime = this.to - this.from;
+	console.log(this.elapsedTime);
+
+	this.milliSeconds = this.elapsedTime;
+	var divider = 1000;
+	this.seconds = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 60;
+	this.minutes = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 60;
+	this.hours = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 24;
+	this.days = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= 7;
+	this.weeks = { num: Math.floor(this.elapsedTime / divider) };
+	divider *= (30 / 7);
+	this.months = { num: Math.floor(this.elapsedTime / divider) };
+	divider = divider / (30 / 7) * 365;
+	this.years = { num: Math.floor(this.elapsedTime / divider) };
+
+	this.seconds.text = this.seconds.num + ' second' + (this.seconds.num < 2 ? '' : 's');
+	this.minutes.text = this.minutes.num + ' minute' + (this.minutes.num < 2 ? '' : 's');
+	this.hours.text = this.hours.num + ' hour' + (this.hours.num < 2 ? '' : 's');
+	this.days.text = this.days.num + ' day' + (this.days.num < 2 ? '' : 's');
+	this.weeks.text = this.weeks.num + ' week' + (this.weeks.num < 2 ? '' : 's');
+	this.months.text = this.months.num + ' month' + (this.months.num < 2 ? '' : 's');
+	this.years.text = this.years.num + ' year' + (this.years.num < 2 ? '' : 's');
+
+	if (this.years.num > 0) this.optimal =  this.years.text;
+	else if (this.months.num > 0) this.optimal =  this.months.text;
+	else if (this.weeks.num > 0) this.optimal =  this.weeks.text;
+	else if (this.days.num > 0) this.optimal =  this.days.text;
+	else if (this.hours.num > 0) this.optimal =  this.hours.text;
+	else if (this.minutes.num > 0) this.optimal =  this.minutes.text;
+	else if (this.seconds.num > 0) this.optimal =  this.seconds.text;
+
+	return this;
+};
+
+Elapsed.prototype.refresh = function(to) {
+	if (!to) this.to = new Date();
+	else this.to = to;
+	if (!this.to instanceof Date) return;
+
+	return this.set();
+};
+
+module.exports = Elapsed;
 },{}],2:[function(require,module,exports){
 (function(){// Browser Request
 //
@@ -2072,7 +2131,7 @@ function b64_enc (data) {
 }
 
 })()
-},{"./xmlhttprequest":5}],3:[function(require,module,exports){
+},{"./xmlhttprequest":6}],3:[function(require,module,exports){
 var _ = require('underscore');
 
 var HTMLElements = // from the w3schools site (http://www.w3schools.com/tags/default.asp)
@@ -2160,7 +2219,7 @@ Huk.prototype.prependTo = function (parent) {
 };
 
 module.exports = Huk;
-},{"underscore":4}],5:[function(require,module,exports){
+},{"underscore":4}],6:[function(require,module,exports){
 (function(){
 
 !function(window) {
